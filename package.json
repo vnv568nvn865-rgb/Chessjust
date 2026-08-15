@@ -1,7 +1,0 @@
-{
-  "name": "chess-analyzer",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Chess Analyzer - يجلب مباريات Chess.com ويحللها بمحرك Stockfish",
-  "scripts": {
-    "build": "echo

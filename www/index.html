@@ -215,7 +215,7 @@
   تحليل تقريبي يعتمد على محرك Stockfish يعمل داخل المتصفح (WASM). قد يختلف العمق حسب سرعة الجهاز.
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="./vendor/chess.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -510,4 +510,189 @@
         const sq = document.createElement('div');
         sq.className = 'sq ' + (isLight ? 'light' : 'dark');
         if(piece){
-          const symbol = piece.color === 'w' ?
+          const symbol = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
+          sq.textContent = PIECE_UNICODE[symbol] || '';
+          sq.classList.add(piece.color === 'w' ? 'piece-white' : 'piece-black');
+        }
+        grid.appendChild(sq);
+      });
+    });
+  }
+
+  function renderMovesList(){
+    const panel = document.getElementById('movesPanel');
+    if(!panel) return;
+    if(sanMoves.length === 0){
+      panel.innerHTML = '<div class="empty-hint" style="padding:8px;">لا توجد نقلات.</div>';
+      return;
+    }
+    let html = '<div class="moves-grid">';
+    for(let i = 0; i < sanMoves.length; i += 2){
+      const moveNum = Math.floor(i/2) + 1;
+      const whitePly = i + 1;
+      const blackPly = i + 2;
+      html += `<span class="num">${moveNum}.</span>`;
+      html += `<span data-ply="${whitePly}" class="${currentPly===whitePly?'cur':''}">${sanMoves[i]}</span>`;
+      html += sanMoves[i+1]
+        ? `<span data-ply="${blackPly}" class="${currentPly===blackPly?'cur':''}">${sanMoves[i+1]}</span>`
+        : `<span></span>`;
+    }
+    html += '</div>';
+    panel.innerHTML = html;
+    panel.querySelectorAll('[data-ply]').forEach(el => {
+      el.addEventListener('click', () => goToPly(parseInt(el.getAttribute('data-ply'), 10)));
+    });
+  }
+
+  function goToPly(ply){
+    if(ply < 0 || ply >= positions.length) return;
+    currentPly = ply;
+    renderBoard();
+    renderMovesList();
+    updateNavButtons();
+    requestAnalysis();
+  }
+
+  function updateNavButtons(){
+    const first = document.getElementById('btnFirst');
+    const prev = document.getElementById('btnPrev');
+    const next = document.getElementById('btnNext');
+    const last = document.getElementById('btnLast');
+    if(!first) return;
+    first.disabled = prev.disabled = (currentPly === 0);
+    next.disabled = last.disabled = (currentPly === positions.length - 1);
+  }
+
+  /* ---------- local Stockfish engine (Worker) ---------- */
+  function setEvalReadout(label, bestSan, fraction){
+    const readout = document.getElementById('evalReadout');
+    if(readout){
+      readout.innerHTML = `التقييم: <b>${escapeHtml(label)}</b> · أفضل نقلة: <b id="bestMoveOut">${escapeHtml(bestSan||'—')}</b>`;
+    }
+    if(typeof fraction === 'number'){
+      const fill = document.getElementById('evalBarFill');
+      if(fill) fill.style.height = Math.max(2, Math.min(98, fraction*100)) + '%';
+    }
+  }
+
+  function setEvalReadoutWithRetry(message){
+    const readout = document.getElementById('evalReadout');
+    if(!readout) return;
+    readout.innerHTML = `<span>${escapeHtml(message)}</span> — <button id="retrySfBtn" style="cursor:pointer;background:none;border:1px solid var(--gold);color:var(--gold);border-radius:5px;padding:2px 8px;font-size:12px;">إعادة المحاولة</button>`;
+    const btn = document.getElementById('retrySfBtn');
+    if(btn) btn.addEventListener('click', () => { sfFailed = false; initStockfish(); });
+  }
+
+  function uciToSan(fen, uci){
+    try{
+      const c = new Chess(fen);
+      const from = uci.slice(0,2), to = uci.slice(2,4);
+      const promotion = uci.length > 4 ? uci[4] : undefined;
+      const mv = c.move({from, to, promotion});
+      return mv ? mv.san : null;
+    } catch(e){ return null; }
+  }
+
+  let sfLoading = false;
+  let sfFailed = false;
+  const STOCKFISH_URL = './vendor/stockfish.js';
+
+  async function initStockfish(){
+    if(sfLoading || stockfish) return;
+    sfLoading = true;
+    setEvalReadout('جاري تشغيل محرك التحليل...', '—');
+    try{
+      // local, bundled file — same-origin, so no fetch/blob/CORS workaround needed,
+      // and it works fully offline once the app is installed.
+      stockfish = new Worker(STOCKFISH_URL);
+      stockfish.onmessage = handleSfMessage;
+      stockfish.onerror = (e) => {
+        console.error('stockfish error', e);
+        sfReady = false;
+        sfFailed = true;
+        stockfish = null;
+        setEvalReadoutWithRetry('محرك التحليل غير متاح على هذا الجهاز');
+      };
+      stockfish.postMessage('uci');
+      stockfish.postMessage('isready');
+      sfReady = true;
+      sfFailed = false;
+      if(positions && positions.length){ requestAnalysis(true); }
+    } catch(e){
+      console.error('stockfish init failed', e);
+      sfReady = false;
+      sfFailed = true;
+      stockfish = null;
+      setEvalReadoutWithRetry('تعذّر تشغيل محرك التحليل');
+    } finally {
+      sfLoading = false;
+    }
+  }
+
+  function handleSfMessage(e){
+    const line = typeof e.data === 'string' ? e.data : '';
+    if(!line) return;
+
+    const cpMatch = line.match(/score cp (-?\d+)/);
+    const mateMatch = line.match(/score mate (-?\d+)/);
+    const pvMatch = line.match(/ pv (.+)/);
+
+    if(cpMatch || mateMatch){
+      const sideToMove = (new Chess(positions[currentPly])).turn(); // 'w' or 'b'
+      let label, fraction;
+      if(mateMatch){
+        let mateIn = parseInt(mateMatch[1], 10);
+        if(sideToMove === 'b') mateIn = -mateIn;
+        label = 'كش ملك خلال ' + Math.abs(mateIn) + ' نقلة';
+        fraction = mateIn > 0 ? 0.97 : 0.03;
+      } else {
+        let cp = parseInt(cpMatch[1], 10);
+        if(sideToMove === 'b') cp = -cp;
+        const pawns = (cp / 100).toFixed(2);
+        label = (cp > 0 ? '+' : '') + pawns;
+        fraction = 1 / (1 + Math.exp(-cp / 350));
+      }
+      let bestSan = '—';
+      if(pvMatch){
+        const firstMoveUci = pvMatch[1].trim().split(' ')[0];
+        bestSan = uciToSan(positions[currentPly], firstMoveUci) || firstMoveUci;
+      }
+      setEvalReadout(label, bestSan, fraction);
+    }
+
+    if(line.startsWith('bestmove')){
+      const uci = line.split(' ')[1];
+      if(uci && uci !== '(none)'){
+        const san = uciToSan(positions[currentPly], uci);
+        const out = document.getElementById('bestMoveOut');
+        if(out) out.textContent = san || uci;
+      }
+    }
+  }
+
+  let analysisTimer = null;
+  function requestAnalysis(immediate){
+    if(!stockfish && !sfFailed){ initStockfish(); }
+    if(!stockfish) return;
+    clearTimeout(analysisTimer);
+    analysisSeq++;
+    const mySeq = analysisSeq;
+    analysisTimer = setTimeout(() => {
+      if(mySeq !== analysisSeq) return;
+      try{
+        stockfish.postMessage('position fen ' + positions[currentPly]);
+        stockfish.postMessage('go depth 15');
+      } catch(e){ /* worker unavailable */ }
+    }, immediate ? 0 : 200);
+  }
+
+  /* ---------- wire up ---------- */
+  searchBtn.addEventListener('click', searchPlayer);
+  usernameInput.addEventListener('keydown', e => { if(e.key === 'Enter') searchPlayer(); });
+  // Stockfish loads lazily on first analysis request, not on page open,
+  // so the app itself always opens instantly.
+})();
+
+</script>
+</body>
+</html>

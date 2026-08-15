@@ -29,6 +29,17 @@ jobs:
       - name: Install project dependencies
         run: npm install
 
+      # Bundle the chess engine + move library INTO the app itself, so
+      # the board and Stockfish analysis work fully offline once installed.
+      # Only the Chess.com game search still needs internet (unavoidable,
+      # since it talks to Chess.com's servers).
+      - name: Download offline chess engine assets
+        run: |
+          mkdir -p www/vendor
+          curl -fL -o www/vendor/chess.min.js https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js
+          curl -fL -o www/vendor/stockfish.js https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js
+          ls -la www/vendor
+
       - name: Add Android platform (Capacitor)
         run: npx cap add android
 

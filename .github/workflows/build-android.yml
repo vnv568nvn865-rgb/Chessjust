@@ -29,16 +29,34 @@ jobs:
       - name: Install project dependencies
         run: npm install
 
-      # Bundle the chess engine + move library INTO the app itself, so
-      # the board and Stockfish analysis work fully offline once installed.
-      # Only the Chess.com game search still needs internet (unavoidable,
-      # since it talks to Chess.com's servers).
+      # Bundle the chess engine + move library + piece images INTO the app
+      # itself, so the board and Stockfish analysis work fully offline once
+      # installed. Only the Chess.com game search still needs internet
+      # (unavoidable, since it talks to Chess.com's servers).
       - name: Download offline chess engine assets
         run: |
-          mkdir -p www/vendor
+          mkdir -p www/vendor www/vendor/pieces
           curl -fL -o www/vendor/chess.min.js https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js
+
+          # Primary engine: Stockfish 18 with NNUE (much stronger evaluation
+          # than classical Stockfish), single-threaded build so it needs no
+          # special CORS/cross-origin-isolation headers inside the WebView.
+          curl -fL -o www/vendor/stockfish-18-lite-single.js \
+            https://github.com/nmrugg/stockfish.js/releases/download/v18.0.0/stockfish-18-lite-single.js
+          curl -fL -o www/vendor/stockfish-18-lite-single.wasm \
+            https://github.com/nmrugg/stockfish.js/releases/download/v18.0.0/stockfish-18-lite-single.wasm
+
+          # Fallback engine (old classical asm.js) kept in case the NNUE/WASM
+          # build ever fails to load on a particular device.
           curl -fL -o www/vendor/stockfish.js https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js
-          ls -la www/vendor
+
+          # Classic clear piece set (Wikipedia/Cburnett), openly licensed.
+          for p in wP wN wB wR wQ wK bP bN bB bR bQ bK; do
+            curl -fL -o "www/vendor/pieces/${p}.png" \
+              "https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/img/chesspieces/wikipedia/${p}.png"
+          done
+
+          ls -la www/vendor www/vendor/pieces
 
       - name: Add Android platform (Capacitor)
         run: npx cap add android

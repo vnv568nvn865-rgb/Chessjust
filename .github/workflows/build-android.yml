@@ -50,10 +50,11 @@ jobs:
           # build ever fails to load on a particular device.
           curl -fL -o www/vendor/stockfish.js https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js
 
-          # Classic clear piece set (Wikipedia/Cburnett), openly licensed.
+          # Classic clear piece set (Cburnett, the same set Lichess uses),
+          # openly licensed under GPLv2+.
           for p in wP wN wB wR wQ wK bP bN bB bR bQ bK; do
-            curl -fL -o "www/vendor/pieces/${p}.png" \
-              "https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/img/chesspieces/wikipedia/${p}.png"
+            curl -fL -o "www/vendor/pieces/${p}.svg" \
+              "https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/cburnett/${p}.svg"
           done
 
           ls -la www/vendor www/vendor/pieces

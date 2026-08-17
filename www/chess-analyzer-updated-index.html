@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>محلل الشطرنج</title>
+<style>
+  :root{
+    --bg:#241812; --panel:#2f2015; --panel2:#382719;
+    --ink:#f2e6d3; --ink-dim:#c9b79c; --line:#4a3423;
+    --gold:#c9a227; --gold-dim:#9c7f28;
+    --sq-light:#e8d4ab; --sq-dark:#7a5233;
+    --win:#5f9e6e; --loss:#b5544a; --draw:#9c8a5c;
+    --font-display: Georgia, 'Amiri', 'Traditional Arabic', serif;
+    --font-body: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+  [data-theme="light"]{
+    --bg:#f4ecd8; --panel:#fffaf0; --panel2:#f0e6cc;
+    --ink:#2b1d10; --ink-dim:#6b5b42; --line:#ddcda6;
+    --sq-light:#f0e0bd; --sq-dark:#a97c50;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--font-body);
+    min-height:100vh; transition:background .25s, color .25s;
+  }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .mark{font-size:26px; color:var(--gold);}
+  .brand h1{font-family:var(--font-display); font-size:19px; margin:0; letter-spacing:.5px;}
+  .brand span{display:block; font-size:11px; color:var(--ink-dim); letter-spacing:1px;}
+  .theme-btn{
+    background:transparent; border:1px solid var(--line); color:var(--ink);
+    border-radius:20px; padding:7px 14px; cursor:pointer; font-size:13px;
+    font-family:var(--font-body);
+  }
+  .theme-btn:hover{border-color:var(--gold);}
+
+  .layout{
+    display:grid; grid-template-columns: 1fr 340px; gap:18px;
+    max-width:1180px; margin:0 auto; padding:18px;
+  }
+  @media (max-width: 880px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px;
+  }
+  .panel + .panel{margin-top:16px;}
+  .panel h2{
+    font-family:var(--font-display); font-size:15px; margin:0 0 12px 0;
+    color:var(--gold); border-bottom:1px solid var(--line); padding-bottom:8px;
+  }
+
+  /* search */
+  .search-row{display:flex; gap:8px;}
+  .search-row input{
+    flex:1; padding:10px 12px; border-radius:6px; border:1px solid var(--line);
+    background:var(--panel2); color:var(--ink); font-size:14px; font-family:var(--font-body);
+  }
+  .search-row input:focus{outline:2px solid var(--gold); outline-offset:1px;}
+  .search-row button{
+    background:var(--gold); color:#241812; border:none; border-radius:6px;
+    padding:10px 16px; cursor:pointer; font-weight:bold; font-family:var(--font-body);
+  }
+  .search-row button:disabled{opacity:.5; cursor:default;}
+  .status-msg{margin-top:10px; font-size:13px; color:var(--ink-dim); min-height:18px;}
+  .status-msg.err{color:var(--loss);}
+  .status-msg.ok{color:var(--win);}
+
+  .games-list{max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;}
+  .game-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:9px 10px; border-radius:6px; border:1px solid var(--line);
+    background:var(--panel2); cursor:pointer; font-size:13px;
+  }
+  .game-row:hover{border-color:var(--gold);}
+  .game-row.active{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold) inset;}
+  .game-row .opp{font-weight:bold;}
+  .game-row .meta{color:var(--ink-dim); font-size:11px;}
+  .badge{padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; color:#fff; white-space:nowrap;}
+  .badge.win{background:var(--win);} .badge.loss{background:var(--loss);} .badge.draw{background:var(--draw);}
+
+  .manual-pgn{margin-top:10px;}
+  .manual-pgn textarea{
+    width:100%; min-height:70px; background:var(--panel2); color:var(--ink);
+    border:1px solid var(--line); border-radius:6px; padding:8px; font-family:var(--font-mono);
+    font-size:12px; direction:ltr; text-align:left;
+  }
+  .manual-pgn button{
+    margin-top:6px; background:transparent; border:1px solid var(--gold); color:var(--gold);
+    padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;
+  }
+
+  /* game area (LTR: board convention) */
+  .game-area{direction:ltr;}
+  .board-col{display:flex; flex-direction:column; align-items:center; gap:8px;}
+  .board-wrap{
+    display:flex; flex-wrap:nowrap; gap:6px; align-items:stretch; justify-content:center;
+  }
+  .eval-bar-outer{
+    width:clamp(12px, 5vw, 24px); flex-shrink:0; border-radius:4px; overflow:hidden;
+    border:1px solid var(--line); display:flex; flex-direction:column-reverse; background:#1a1a1a;
+  }
+  .eval-bar-fill{background:#eee; width:100%; transition:height .35s ease;}
+  .board{
+    display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr);
+    width:min(84vw, 440px); aspect-ratio:1/1; border:2px solid var(--line); border-radius:4px; overflow:hidden;
+    flex-shrink:0;
+  }
+  .sq{display:flex; align-items:center; justify-content:center; position:relative;
+      font-size:clamp(16px, 6vw, 34px); user-select:none; line-height:1;
+      transition:background-color .2s ease;}
+  .sq.light{background:var(--sq-light);} .sq.dark{background:var(--sq-dark);}
+  .sq.from-hl{background:#c9a22766 !important;}
+  .sq.to-hl{background:#c9a22799 !important;}
+  .sq img.piece-img{
+    width:82%; height:82%; object-fit:contain;
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));
+    pointer-events:none; user-select:none;
+  }
+  .piece-white{
+    color:#fbf4e4; -webkit-text-stroke:1.4px #1c130b; paint-order:stroke fill;
+    text-shadow:0 2px 2px rgba(0,0,0,.4);
+    filter:drop-shadow(0 1px 0 rgba(0,0,0,.3));
+  }
+  .piece-black{
+    color:#14100a; -webkit-text-stroke:1px #f2e6d3; paint-order:stroke fill;
+    text-shadow:0 1px 1px rgba(0,0,0,.2);
+  }
+  .sq .coord{position:absolute; font-size:8px; opacity:.55; font-family:var(--font-mono);}
+  .sq .coord.file{bottom:2px; right:2px;} .sq .coord.rank{top:2px; left:2px;}
+  .sq.hl{box-shadow: inset 0 0 0 3px var(--gold);}
+  .board{box-shadow:0 6px 18px rgba(0,0,0,.35);}
+
+  .controls-row{display:flex; gap:6px; justify-content:center; flex-wrap:wrap;}
+  .controls-row button{
+    background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    padding:8px 14px; border-radius:6px; cursor:pointer; font-size:14px; font-family:var(--font-mono);
+  }
+  .controls-row button:hover:not(:disabled){border-color:var(--gold);}
+  .controls-row button:disabled{opacity:.35; cursor:default;}
+
+  .eval-readout{
+    text-align:center; font-family:var(--font-mono); font-size:13px; color:var(--ink-dim);
+  }
+  .eval-readout b{color:var(--ink); font-size:16px;}
+
+  .moves-panel{max-height:220px; overflow-y:auto; font-family:var(--font-mono); font-size:13px;}
+  .moves-grid{display:grid; grid-template-columns:32px 1fr 1fr; gap:2px 6px;}
+  .moves-grid .num{color:var(--ink-dim);}
+  .moves-grid span.mv{padding:3px 6px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:4px; justify-content:space-between;}
+  .moves-grid span.mv:hover{background:var(--panel2);}
+  .moves-grid span.mv.cur{background:var(--gold); color:#241812; font-weight:bold;}
+  .mv-icon{font-size:11px;}
+  .mv-icon.brilliant{color:#37c6e0;} .mv-icon.best{color:#5f9e6e;} .mv-icon.excellent{color:#7fb87a;}
+  .mv-icon.good{color:#9fc98a;} .mv-icon.inaccuracy{color:#d9b64e;} .mv-icon.mistake{color:#d98a3f;}
+  .mv-icon.blunder{color:#c95a4a;}
+
+  .analyze-row{display:flex; gap:8px; justify-content:center; margin:10px 0; flex-wrap:wrap;}
+  .analyze-row button{
+    background:transparent; border:1px solid var(--gold); color:var(--gold); border-radius:6px;
+    padding:8px 14px; cursor:pointer; font-size:13px; font-family:var(--font-body);
+  }
+  .analyze-row button:hover:not(:disabled){background:var(--gold); color:#241812;}
+  .analyze-row button:disabled{opacity:.5; cursor:default;}
+
+  .progress-wrap{margin:10px 0; direction:rtl;}
+  .progress-track{height:8px; border-radius:5px; background:var(--panel2); overflow:hidden; border:1px solid var(--line);}
+  .progress-fill{height:100%; background:var(--gold); width:0%; transition:width .2s ease;}
+  .progress-label{font-size:12px; color:var(--ink-dim); margin-top:5px; text-align:center;}
+
+  .accuracy-summary{display:flex; gap:10px; justify-content:center; margin:10px 0; direction:rtl;}
+  .accuracy-card{
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:10px 16px; text-align:center; min-width:110px;
+  }
+  .accuracy-card .who{font-size:12px; color:var(--ink-dim);}
+  .accuracy-card .pct{font-size:22px; font-weight:bold; color:var(--gold); font-family:var(--font-mono);}
+
+  .eval-graph{width:100%; height:64px; display:block; margin:10px 0;}
+
+  .batch-results{margin-top:10px; display:flex; flex-direction:column; gap:6px;}
+  .batch-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--panel2);
+    font-size:12px;
+  }
+  .batch-row .acc{font-family:var(--font-mono); font-weight:bold; color:var(--gold);}
+
+  .empty-hint{
+    color:var(--ink-dim); font-size:13px; text-align:center; padding:30px 10px; direction:rtl;
+  }
+  .footer-note{
+    max-width:1180px; margin:0 auto; padding:0 18px 24px; color:var(--ink-dim); font-size:12px; direction:rtl;
+  }
+  .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0);}
+  button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--gold); outline-offset:2px;
+  }
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="topbar">
+  <div class="brand">
+    <span class="mark">♞</span>
+    <div>
+      <h1>محلل الشطرنج</h1>
+      <span>Chess Analyzer — مدعوم بمحرك Stockfish</span>
+    </div>
+  </div>
+  <button class="theme-btn" id="themeToggle">الوضع الليلي / النهاري</button>
+</div>
+
+<div class="layout">
+  <!-- LEFT: board + analysis -->
+  <div>
+    <div class="panel game-area">
+      <h2>الرقعة والتحليل</h2>
+      <div id="boardArea">
+        <div class="empty-hint">ابحث عن لاعب من جهة اليمين، أو الصق PGN يدويًا، ثم اختر مباراة لعرضها هنا.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: search + games -->
+  <div>
+    <div class="panel">
+      <h2>البحث عن لاعب (Chess.com)</h2>
+      <div class="search-row">
+        <input id="usernameInput" type="text" placeholder="اسم المستخدم في Chess.com" autocomplete="off">
+        <button id="searchBtn">بحث</button>
+      </div>
+      <div id="statusMsg" class="status-msg"></div>
+
+      <div class="manual-pgn">
+        <label for="pgnInput" style="font-size:12px;color:var(--ink-dim);">أو ألصق PGN يدويًا (بديل عند تعذّر الاتصال بالـ API):</label>
+        <textarea id="pgnInput" placeholder="1. e4 e5 2. Nf3 ..."></textarea>
+        <button id="loadPgnBtn">تحميل PGN</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>المباريات</h2>
+      <div class="analyze-row">
+        <button id="batchAnalyzeBtn" disabled>تحليل دقة آخر 10 مباريات</button>
+      </div>
+      <div id="batchProgress" class="progress-wrap" style="display:none;">
+        <div class="progress-track"><div class="progress-fill" id="batchProgressFill"></div></div>
+        <div class="progress-label" id="batchProgressLabel"></div>
+      </div>
+      <div id="batchResults" class="batch-results"></div>
+      <div id="gamesList" class="games-list">
+        <div class="empty-hint" style="padding:12px;">لا توجد مباريات بعد.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">
+  تحليل تقريبي يعتمد على محرك Stockfish يعمل داخل المتصفح (WASM). قد يختلف العمق حسب سرعة الجهاز.
+</div>
+
+<script src="./vendor/chess.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- theme ---------- */
+  const themeBtn = document.getElementById('themeToggle');
+  themeBtn.addEventListener('click', () => {
+    const cur = document.body.getAttribute('data-theme');
+    document.body.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+
+  /* ---------- state ---------- */
+  let games = [];              // list from chess.com
+  let activeGameIndex = -1;
+  let chess = null;            // chess.js instance for the loaded game
+  let positions = [];          // FEN after each ply (index 0 = start)
+  let sanMoves = [];           // SAN for each ply
+  let verboseMoves = [];       // verbose move objects (from/to/piece/captured) for each ply
+  let currentPly = 0;          // 0..positions.length-1
+  let boardFlipped = false;
+  let sfReady = false;
+  let analysisSeq = 0;
+  let lastSearchedUsername = null;
+  let moveClass = [];          // classification per move index (0..sanMoves.length-1)
+  let evalsWhitePOV = [];      // cached per-position eval (White POV, cp) from full-game analysis
+  let fullGameAnalysisRunning = false;
+
+  const usernameInput = document.getElementById('usernameInput');
+  const searchBtn = document.getElementById('searchBtn');
+  const statusMsg = document.getElementById('statusMsg');
+  const gamesListEl = document.getElementById('gamesList');
+  const boardArea = document.getElementById('boardArea');
+  const pgnInput = document.getElementById('pgnInput');
+  const loadPgnBtn = document.getElementById('loadPgnBtn');
+
+  function setStatus(text, kind){
+    statusMsg.textContent = text || '';
+    statusMsg.className = 'status-msg' + (kind ? ' ' + kind : '');
+  }
+
+  /* ---------- chess.com fetch ---------- */
+  async function searchPlayer(){
+    const raw = usernameInput.value.trim();   // never clear the input on failure
+    if(!raw){ setStatus('اكتب اسم مستخدم أولًا.', 'err'); return; }
+    const username = raw.toLowerCase();
+
+    searchBtn.disabled = true;
+    setStatus('جاري التحقق من اللاعب...', '');
+    games = []; activeGameIndex = -1; renderGamesList();
+
+    try{
+      const profileRes = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(username)}`);
+      if(profileRes.status === 404){
+        setStatus('لم يتم العثور على هذا اللاعب. تحقق من الاسم وحاول مجددًا.', 'err');
+        return;
+      }
+      if(!profileRes.ok) throw new Error('profile_' + profileRes.status);
+
+      setStatus('جاري جلب أرشيف المباريات...', '');
+      const archRes = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(username)}/games/archives`);
+      if(!archRes.ok) throw new Error('archives_' + archRes.status);
+      const archJson = await archRes.json();
+      const archives = archJson.archives || [];
+      if(archives.length === 0){
+        setStatus('لا توجد مباريات مؤرشفة لهذا اللاعب.', 'err');
+        return;
+      }
+
+      // pull the most recent archive; if it has few games, also pull the one before it
+      let collected = [];
+      const lastUrl = archives[archives.length - 1];
+      collected = collected.concat(await fetchArchive(lastUrl));
+      if(collected.length < 8 && archives.length > 1){
+        const prevUrl = archives[archives.length - 2];
+        collected = collected.concat(await fetchArchive(prevUrl));
+      }
+
+      collected.sort((a,b) => (b.end_time||0) - (a.end_time||0));
+      games = collected.slice(0, 40).map(g => normalizeGame(g, username));
+      lastSearchedUsername = username;
+
+      if(games.length === 0){
+        setStatus('لم يتم العثور على مباريات حديثة.', 'err');
+      } else {
+        setStatus(`تم العثور على ${games.length} مباراة.`, 'ok');
+      }
+      const batchBtn = document.getElementById('batchAnalyzeBtn');
+      if(batchBtn) batchBtn.disabled = games.length === 0;
+      renderGamesList();
+    } catch(err){
+      console.error(err);
+      setStatus('تعذّر الاتصال بواجهة Chess.com. تحقق من اتصال الإنترنت أو استخدم إدخال PGN يدويًا.', 'err');
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  async function fetchArchive(url){
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('archive_' + res.status);
+    const json = await res.json();
+    return json.games || [];
+  }
+
+  const RESULT_MAP = {
+    win:      {label:'فوز', cls:'win'},
+    checkmated:{label:'خسارة', cls:'loss'},
+    resigned: {label:'خسارة', cls:'loss'},
+    timeout:  {label:'خسارة', cls:'loss'},
+    abandoned:{label:'خسارة', cls:'loss'},
+    lose:     {label:'خسارة', cls:'loss'},
+    agreed:   {label:'تعادل', cls:'draw'},
+    repetition:{label:'تعادل', cls:'draw'},
+    stalemate:{label:'تعادل', cls:'draw'},
+    insufficient:{label:'تعادل', cls:'draw'},
+    '50move': {label:'تعادل', cls:'draw'},
+    timevsinsufficient:{label:'تعادل', cls:'draw'}
+  };
+
+  function normalizeGame(g, username){
+    const isWhite = (g.white && g.white.username || '').toLowerCase() === username;
+    const me = isWhite ? g.white : g.black;
+    const opp = isWhite ? g.black : g.white;
+    const res = RESULT_MAP[(me && me.result) || ''] || {label: (me && me.result) || '-', cls:'draw'};
+    return {
+      opponent: (opp && opp.username) || '؟',
+      oppRating: (opp && opp.rating) || '',
+      myColor: isWhite ? 'أبيض' : 'أسود',
+      myColorCode: isWhite ? 'w' : 'b',
+      resultLabel: res.label,
+      resultCls: res.cls,
+      timeClass: g.time_class || '',
+      endTime: g.end_time || 0,
+      pgn: g.pgn || ''
+    };
+  }
+
+  function fmtDate(ts){
+    if(!ts) return '';
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString('ar-EG', {year:'numeric', month:'short', day:'numeric'});
+  }
+
+  function renderGamesList(){
+    if(games.length === 0){
+      gamesListEl.innerHTML = '<div class="empty-hint" style="padding:12px;">لا توجد مباريات بعد.</div>';
+      return;
+    }
+    gamesListEl.innerHTML = '';
+    games.forEach((g, idx) => {
+      const row = document.createElement('div');
+      row.className = 'game-row' + (idx === activeGameIndex ? ' active' : '');
+      row.setAttribute('role','button');
+      row.tabIndex = 0;
+      row.innerHTML = `
+        <div>
+          <div class="opp">ضد ${escapeHtml(g.opponent)} ${g.oppRating ? '('+g.oppRating+')' : ''}</div>
+          <div class="meta">لوني: ${g.myColor} · ${g.timeClass} · ${fmtDate(g.endTime)}</div>
+        </div>
+        <span class="badge ${g.resultCls}">${g.resultLabel}</span>
+      `;
+      const activate = () => selectGame(idx);
+      row.addEventListener('click', activate);
+      row.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); activate(); }});
+      gamesListEl.appendChild(row);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function selectGame(idx){
+    activeGameIndex = idx;
+    renderGamesList();
+    loadPgn(games[idx].pgn);
+  }
+
+  /* ---------- PGN loading & board build ---------- */
+  loadPgnBtn.addEventListener('click', () => {
+    const pgn = pgnInput.value.trim();
+    if(!pgn){ setStatus('الصق نص PGN أولًا.', 'err'); return; }
+    activeGameIndex = -1;
+    renderGamesList();
+    loadPgn(pgn);
+  });
+
+  function preprocessPgn(raw){
+    let text = raw.replace(/\r\n/g, '\n').trim();
+    const lines = text.split('\n');
+
+    // ensure a blank line separates the [Header] tags from the movetext
+    let lastHeaderIdx = -1;
+    for(let i = 0; i < lines.length; i++){
+      if(/^\s*\[\w+\s+".*"\]\s*$/.test(lines[i])){
+        lastHeaderIdx = i;
+      } else if(lastHeaderIdx >= 0){
+        break;
+      }
+    }
+    if(lastHeaderIdx >= 0 && lines[lastHeaderIdx + 1] !== undefined && lines[lastHeaderIdx + 1].trim() !== ''){
+      lines.splice(lastHeaderIdx + 1, 0, '');
+    }
+    text = lines.join('\n');
+
+    // trim anything trailing after the final result token (e.g. stray "..." from copy/paste)
+    const tokens = ['1-0', '0-1', '1/2-1/2', '*'];
+    let cutIdx = -1, cutLen = 0;
+    tokens.forEach(t => {
+      const idx = text.lastIndexOf(t);
+      if(idx > cutIdx){ cutIdx = idx; cutLen = t.length; }
+    });
+    if(cutIdx >= 0){
+      text = text.slice(0, cutIdx + cutLen);
+    }
+    return text;
+  }
+
+  function loadPgn(pgn){
+    const c = new Chess();
+    const cleaned = preprocessPgn(pgn);
+    let ok = c.load_pgn(cleaned, {sloppy: true});
+    if(!ok){
+      // last resort: strip all headers and try movetext alone
+      const movesOnly = cleaned.split('\n').filter(l => !/^\s*\[/.test(l)).join(' ').trim();
+      ok = c.load_pgn(movesOnly, {sloppy: true});
+    }
+    if(!ok){
+      setStatus('تعذّر قراءة نص PGN. تأكد من عدم وجود رموز إضافية بعد نتيجة المباراة (مثل 0-1) وأن النقلات مكتوبة بصيغة صحيحة.', 'err');
+      return;
+    }
+    const history = c.history({verbose:true});
+    const replay = new Chess();
+    positions = [replay.fen()];
+    sanMoves = [];
+    verboseMoves = [];
+    moveClass = [];
+    evalsWhitePOV = [];
+    history.forEach(mv => {
+      replay.move(mv.san, {sloppy:true});
+      positions.push(replay.fen());
+      sanMoves.push(mv.san);
+      verboseMoves.push(mv);
+    });
+    chess = replay;
+    currentPly = positions.length - 1;
+    boardFlipped = false;
+    buildBoardUI();
+    goToPly(currentPly);
+  }
+
+  /* ---------- board rendering ---------- */
+  const PIECE_UNICODE = {
+    p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', // black (lowercase)
+    P:'♙', N:'♘', B:'♗', R:'♖', Q:'♕', K:'♔'  // white (uppercase)
+  };
+  function pieceImgSrc(color, type){
+    return './vendor/pieces/' + color + type.toUpperCase() + '.svg';
+  }
+
+  function buildBoardUI(){
+    boardArea.innerHTML = `
+      <div class="board-col">
+        <div class="board-wrap">
+          <div class="eval-bar-outer" id="evalBarOuter" title="شريط التقييم">
+            <div class="eval-bar-fill" id="evalBarFill" style="height:50%;"></div>
+          </div>
+          <div class="board" id="boardGrid"></div>
+        </div>
+        <div class="controls-row">
+          <button id="btnFirst" title="أول نقلة">⏮</button>
+          <button id="btnPrev" title="السابقة">◀</button>
+          <button id="btnNext" title="التالية">▶</button>
+          <button id="btnLast" title="آخر نقلة">⏭</button>
+          <button id="btnFlip" title="قلب الرقعة">⟲</button>
+        </div>
+        <div class="eval-readout" id="evalReadout">التقييم: <b>—</b> · أفضل نقلة: <b id="bestMoveOut">—</b></div>
+      </div>
+
+      <div class="analyze-row">
+        <button id="analyzeGameBtn">تحليل المباراة كاملة (تصنيف النقلات + الدقة)</button>
+      </div>
+      <div id="gameProgress" class="progress-wrap" style="display:none;">
+        <div class="progress-track"><div class="progress-fill" id="gameProgressFill"></div></div>
+        <div class="progress-label" id="gameProgressLabel"></div>
+      </div>
+      <div id="accuracySummary" class="accuracy-summary" style="display:none;"></div>
+      <svg id="evalGraph" class="eval-graph" style="display:none;" viewBox="0 0 300 64" preserveAspectRatio="none"></svg>
+
+      <div class="panel" style="margin-top:14px;">
+        <h2 style="direction:rtl;">النقلات</h2>
+        <div class="moves-panel" id="movesPanel"></div>
+      </div>
+    `;
+    document.getElementById('btnFirst').addEventListener('click', () => goToPly(0));
+    document.getElementById('btnPrev').addEventListener('click', () => goToPly(currentPly - 1));
+    document.getElementById('btnNext').addEventListener('click', () => goToPly(currentPly + 1));
+    document.getElementById('btnLast').addEventListener('click', () => goToPly(positions.length - 1));
+    document.getElementById('btnFlip').addEventListener('click', () => { boardFlipped = !boardFlipped; renderBoard(); });
+    document.getElementById('analyzeGameBtn').addEventListener('click', () => analyzeFullGame());
+    renderMovesList();
+  }
+
+  function renderBoard(){
+    const grid = document.getElementById('boardGrid');
+    if(!grid) return;
+    grid.innerHTML = '';
+    const tmp = new Chess(positions[currentPly]);
+    const board = tmp.board(); // array[8][8], row0 = rank8
+
+    let rows = [...Array(8).keys()];
+    let cols = [...Array(8).keys()];
+    if(boardFlipped){ rows = rows.reverse(); cols = cols.reverse(); }
+
+    const lastMove = currentPly > 0 ? verboseMoves[currentPly - 1] : null;
+    const files = ['a','b','c','d','e','f','g','h'];
+
+    rows.forEach(r => {
+      cols.forEach(c => {
+        const piece = board[r][c];
+        const isLight = (r + c) % 2 === 0;
+        const sq = document.createElement('div');
+        sq.className = 'sq ' + (isLight ? 'light' : 'dark');
+        const squareName = files[c] + (8 - r);
+        if(lastMove && squareName === lastMove.from) sq.classList.add('from-hl');
+        if(lastMove && squareName === lastMove.to) sq.classList.add('to-hl');
+        if(piece){
+          const symbol = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
+          const img = document.createElement('img');
+          img.className = 'piece-img';
+          img.src = pieceImgSrc(piece.color, piece.type);
+          img.alt = symbol;
+          img.draggable = false;
+          img.onerror = function(){
+            // bundled image missing for some reason — degrade gracefully to unicode glyph
+            sq.classList.add(piece.color === 'w' ? 'piece-white' : 'piece-black');
+            sq.textContent = PIECE_UNICODE[symbol] || '';
+            img.remove();
+          };
+          sq.appendChild(img);
+        }
+        grid.appendChild(sq);
+      });
+    });
+  }
+
+  const MOVE_CLASS_ICON = {
+    brilliant: '💎', best: '⭐', excellent: '✓', good: '✓',
+    inaccuracy: '?!', mistake: '?', blunder: '??'
+  };
+
+  function renderMovesList(){
+    const panel = document.getElementById('movesPanel');
+    if(!panel) return;
+    if(sanMoves.length === 0){
+      panel.innerHTML = '<div class="empty-hint" style="padding:8px;">لا توجد نقلات.</div>';
+      return;
+    }
+    let html = '<div class="moves-grid">';
+    for(let i = 0; i < sanMoves.length; i += 2){
+      const moveNum = Math.floor(i/2) + 1;
+      const whitePly = i + 1;
+      const blackPly = i + 2;
+      html += `<span class="num">${moveNum}.</span>`;
+      html += moveCell(i, whitePly);
+      html += sanMoves[i+1] ? moveCell(i+1, blackPly) : `<span></span>`;
+    }
+    html += '</div>';
+    panel.innerHTML = html;
+    panel.querySelectorAll('[data-ply]').forEach(el => {
+      el.addEventListener('click', () => goToPly(parseInt(el.getAttribute('data-ply'), 10)));
+    });
+  }
+
+  function moveCell(moveIdx, ply){
+    const cls = moveClass[moveIdx];
+    const iconHtml = cls ? `<span class="mv-icon ${cls.cls}" title="${escapeHtml(cls.label)}">${MOVE_CLASS_ICON[cls.cls]||''}</span>` : '';
+    return `<span class="mv${currentPly===ply?' cur':''}" data-ply="${ply}"><span>${sanMoves[moveIdx]}</span>${iconHtml}</span>`;
+  }
+
+  function goToPly(ply){
+    if(ply < 0 || ply >= positions.length) return;
+    currentPly = ply;
+    renderBoard();
+    renderMovesList();
+    updateNavButtons();
+    requestAnalysis();
+  }
+
+  function updateNavButtons(){
+    const first = document.getElementById('btnFirst');
+    const prev = document.getElementById('btnPrev');
+    const next = document.getElementById('btnNext');
+    const last = document.getElementById('btnLast');
+    if(!first) return;
+    first.disabled = prev.disabled = (currentPly === 0);
+    next.disabled = last.disabled = (currentPly === positions.length - 1);
+  }
+
+  /* ---------- local Stockfish engine (Worker) ---------- */
+  function setEvalReadout(label, bestSan, fraction, qualityHtml){
+    const readout = document.getElementById('evalReadout');
+    if(readout){
+      readout.innerHTML = `التقييم: <b>${escapeHtml(label)}</b>` +
+        (qualityHtml ? ` · ${qualityHtml}` : '') +
+        ` · أفضل نقلة: <b id="bestMoveOut">${escapeHtml(bestSan||'—')}</b>`;
+    }
+    if(typeof fraction === 'number'){
+      const fill = document.getElementById('evalBarFill');
+      if(fill) fill.style.height = Math.max(2, Math.min(98, fraction*100)) + '%';
+    }
+  }
+
+  function setEvalReadoutWithRetry(message){
+    const readout = document.getElementById('evalReadout');
+    if(!readout) return;
+    readout.innerHTML = `<span>${escapeHtml(message)}</span> — <button id="retrySfBtn" style="cursor:pointer;background:none;border:1px solid var(--gold);color:var(--gold);border-radius:5px;padding:2px 8px;font-size:12px;">إعادة المحاولة</button>`;
+    const btn = document.getElementById('retrySfBtn');
+    if(btn) btn.addEventListener('click', () => { sfFailed = false; initStockfish(); });
+  }
+
+  function uciToSan(fen, uci){
+    try{
+      const c = new Chess(fen);
+      const from = uci.slice(0,2), to = uci.slice(2,4);
+      const promotion = uci.length > 4 ? uci[4] : undefined;
+      const mv = c.move({from, to, promotion});
+      return mv ? mv.san : null;
+    } catch(e){ return null; }
+  }
+
+  let sfLoading = false;
+  let sfFailed = false;
+  const POOL_SIZE = 3; // parallel engine instances — good balance for 6GB/8-core phones
+  const STOCKFISH_FULL_URL = './vendor/stockfish-18-single.js';       // strongest, tried first
+  const STOCKFISH_LITE_URL = './vendor/stockfish-18-lite-single.js';  // lighter NNUE fallback
+  const STOCKFISH_FALLBACK_URL = './vendor/stockfish.js';             // classical engine, last resort
+  let enginePool = []; // [{worker, busy, pendingInfo, pendingResolve}, ...]
+  let poolEngineUrlUsed = null;
+
+  function tryLoadEngine(url){
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      try{
+        const w = new Worker(url);
+        w.onerror = (e) => {
+          if(settled) return;
+          settled = true;
+          try{ w.terminate(); } catch(e2){}
+          reject(e);
+        };
+        // if the worker script loads/parses without error within this window,
+        // treat it as usable — real errors (404, parse failure) surface almost
+        // immediately via onerror.
+        setTimeout(() => {
+          if(settled) return;
+          settled = true;
+          resolve(w);
+        }, 400);
+      } catch(e){
+        if(!settled){ settled = true; reject(e); }
+      }
+    });
+  }
+
+  function attachPoolSlotHandler(slot){
+    slot.worker.onmessage = (e) => {
+      const line = typeof e.data === 'string' ? e.data : '';
+      if(!line) return;
+      const cpMatch = line.match(/score cp (-?\d+)/);
+      const mateMatch = line.match(/score mate (-?\d+)/);
+      const wdlMatch = line.match(/wdl (\d+) (\d+) (\d+)/);
+      if(cpMatch || mateMatch){
+        slot.pendingInfo = {
+          cp: cpMatch ? parseInt(cpMatch[1], 10) : null,
+          mate: mateMatch ? parseInt(mateMatch[1], 10) : null,
+          wdl: wdlMatch ? {w: parseInt(wdlMatch[1],10), d: parseInt(wdlMatch[2],10), l: parseInt(wdlMatch[3],10)} : (slot.pendingInfo ? slot.pendingInfo.wdl : null)
+        };
+      }
+      if(line.startsWith('bestmove')){
+        const parts = line.split(' ');
+        const bestmove = (parts[1] && parts[1] !== '(none)') ? parts[1] : null;
+        const result = {
+          cp: slot.pendingInfo ? slot.pendingInfo.cp : null,
+          mate: slot.pendingInfo ? slot.pendingInfo.mate : null,
+          wdl: slot.pendingInfo ? slot.pendingInfo.wdl : null,
+          bestmove
+        };
+        slot.pendingInfo = null;
+        if(slot.pendingResolve){ const r = slot.pendingResolve; slot.pendingResolve = null; r(result); }
+      }
+    };
+    slot.worker.onerror = (e) => {
+      console.error('pool worker error', e);
+      if(slot.pendingResolve){ const r = slot.pendingResolve; slot.pendingResolve = null; r({cp:null, mate:null, wdl:null, bestmove:null}); }
+    };
+  }
+
+  async function loadOneEngineWorker(){
+    const urls = [STOCKFISH_FULL_URL, STOCKFISH_LITE_URL, STOCKFISH_FALLBACK_URL];
+    let lastErr = null;
+    for(const url of urls){
+      try{
+        const w = await tryLoadEngine(url);
+        poolEngineUrlUsed = url;
+        return w;
+      } catch(e){ lastErr = e; }
+    }
+    throw lastErr || new Error('all_engines_failed');
+  }
+
+  // creates the pool once; safe to call repeatedly (no-op if already ready/loading)
+  async function initStockfish(){
+    if(sfLoading || enginePool.length > 0) return;
+    sfLoading = true;
+    setEvalReadout('جاري تشغيل محرك التحليل...', '—');
+    try{
+      for(let i = 0; i < POOL_SIZE; i++){
+        const w = await loadOneEngineWorker();
+        const slot = {worker: w, busy: false, pendingInfo: null, pendingResolve: null};
+        attachPoolSlotHandler(slot);
+        w.postMessage('uci');
+        w.postMessage('setoption name UCI_ShowWDL value true');
+        w.postMessage('isready');
+        enginePool.push(slot);
+      }
+      sfReady = true;
+      sfFailed = false;
+      if(positions && positions.length){ requestAnalysis(true); }
+    } catch(e){
+      console.error('stockfish pool init failed', e);
+      sfReady = false;
+      sfFailed = true;
+      enginePool = [];
+      setEvalReadoutWithRetry('تعذّر تشغيل محرك التحليل');
+    } finally {
+      sfLoading = false;
+    }
+  }
+
+  function queryOnSlot(slot, fen, movetimeMs, timeoutMs){
+    movetimeMs = movetimeMs || 1500;
+    timeoutMs = timeoutMs || (movetimeMs + 5000);
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      slot.pendingResolve = (result) => {
+        if(settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      };
+      timer = setTimeout(() => {
+        if(settled) return;
+        try{ slot.worker.postMessage('stop'); } catch(e){}
+        setTimeout(() => { if(!settled){ settled = true; resolve({cp:null, mate:null, wdl:null, bestmove:null}); } }, 1500);
+      }, timeoutMs);
+      try{
+        slot.worker.postMessage('position fen ' + fen);
+        slot.worker.postMessage('go movetime ' + movetimeMs);
+      } catch(e){
+        settled = true;
+        clearTimeout(timer);
+        resolve({cp:null, mate:null, wdl:null, bestmove:null});
+      }
+    });
+  }
+
+  // single-position query (used by the live interactive analysis) — grabs
+  // whichever pool worker is free, waiting briefly if all are busy with a
+  // batch job.
+  async function queryEngine(fen, movetimeMs, timeoutMs){
+    if(enginePool.length === 0 && !sfFailed){ await initStockfish(); }
+    if(enginePool.length === 0) return {cp:null, mate:null, wdl:null, bestmove:null};
+    let slot = enginePool.find(s => !s.busy);
+    if(!slot){
+      slot = await new Promise(resolve => {
+        const iv = setInterval(() => {
+          const free = enginePool.find(s => !s.busy);
+          if(free){ clearInterval(iv); resolve(free); }
+        }, 50);
+      });
+    }
+    slot.busy = true;
+    const r = await queryOnSlot(slot, fen, movetimeMs, timeoutMs);
+    slot.busy = false;
+    return r;
+  }
+
+  // parallel bulk executor: runs `fens` across all pool workers concurrently
+  // (pull-based queue — whichever worker frees up first grabs the next
+  // position), calling onEach(index, result) as each one completes.
+  async function runPoolBulk(fens, movetimeMs, timeoutMs, onEach){
+    if(enginePool.length === 0 && !sfFailed){ await initStockfish(); }
+    if(enginePool.length === 0){
+      for(let i = 0; i < fens.length; i++) onEach(i, {cp:null, mate:null, wdl:null, bestmove:null});
+      return;
+    }
+    let next = 0;
+    async function worker(slot){
+      while(next < fens.length){
+        const idx = next++;
+        slot.busy = true;
+        const r = await queryOnSlot(slot, fens[idx], movetimeMs, timeoutMs);
+        slot.busy = false;
+        onEach(idx, r);
+      }
+    }
+    await Promise.all(enginePool.map(slot => worker(slot)));
+  }
+
+  function renderEvalResult(fen, result){
+    const sideToMove = (new Chess(fen)).turn();
+    let label;
+    if(result.mate !== null && result.mate !== undefined){
+      let mateIn = result.mate;
+      if(sideToMove === 'b') mateIn = -mateIn;
+      label = 'كش ملك خلال ' + Math.abs(mateIn) + ' نقلة';
+    } else {
+      let cp = result.cp || 0;
+      if(sideToMove === 'b') cp = -cp;
+      label = (cp > 0 ? '+' : '') + (cp/100).toFixed(2);
+    }
+    // DIAGNOSTIC: show whether the engine actually reported WDL data, or we
+    // silently fell back to the cp-sigmoid approximation.
+    label += result.wdl ? ' [WDL✓]' : ' [WDL✗ fallback]';
+    // the bar itself uses the engine's own WDL win% (accurate regardless of
+    // how a given Stockfish version internally scales its raw cp number)
+    const fraction = resultToWhitePercent(result, fen) / 100;
+    let bestSan = '—';
+    if(result.bestmove) bestSan = uciToSan(fen, result.bestmove) || result.bestmove;
+
+    let qualityHtml = '';
+    const q = currentPly > 0 ? moveClass[currentPly - 1] : null;
+    if(q){
+      qualityHtml = `<span class="mv-icon ${q.cls}">${MOVE_CLASS_ICON[q.cls]||''} ${escapeHtml(q.label)}</span>`;
+    }
+    setEvalReadout(label, bestSan, fraction, qualityHtml);
+  }
+
+  let analysisTimer = null;
+  function requestAnalysis(immediate){
+    if(enginePool.length === 0 && !sfFailed){ initStockfish(); }
+    if(enginePool.length === 0 && sfFailed) return;
+    if(fullGameAnalysisRunning) return; // don't fight the batch/full-game queue for UI updates
+    clearTimeout(analysisTimer);
+    analysisSeq++;
+    const mySeq = analysisSeq;
+    const fen = positions[currentPly];
+    analysisTimer = setTimeout(async () => {
+      if(mySeq !== analysisSeq) return;
+      setEvalReadout('جاري التحليل...', '—');
+      try{
+        const result = await queryEngine(fen, 1500);
+        if(mySeq !== analysisSeq) return;
+        renderEvalResult(fen, result);
+      } catch(e){
+        if(mySeq !== analysisSeq) return;
+        setEvalReadoutWithRetry('تعذّر تشغيل التحليل');
+      }
+    }, immediate ? 0 : 200);
+  }
+
+  /* ---------- move classification (Best/Excellent/Inaccuracy/Blunder/etc.) ---------- */
+  const PIECE_VALUE = {p:1, n:3, b:3, r:5, q:9, k:0};
+
+  // fallback only — used when the engine didn't report WDL (e.g. the classical
+  // non-NNUE fallback engine doesn't support UCI_ShowWDL)
+  function winPercentFromCp(cp){
+    const capped = Math.max(-1000, Math.min(1000, cp));
+    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * capped)) - 1);
+  }
+
+  function moveAccuracyFromLoss(winPercentLoss){
+    const loss = Math.max(0, winPercentLoss);
+    const acc = 103.1668 * Math.exp(-0.04354 * loss) - 3.1669;
+    return Math.min(100, Math.max(0, acc));
+  }
+
+  // Convert the engine's own WDL (per-mille, from the perspective of the side
+  // to move) into a 0–100 win percentage. This is immune to any future change
+  // in how a given Stockfish version scales its raw "cp" number — the engine
+  // calibrates WDL against its own real win-rate model directly.
+  function wdlToMoverWinPercent(wdl){
+    return (wdl.w + wdl.d * 0.5) / 10;
+  }
+
+  function resultToMoverWinPercent(result){
+    if(result.wdl) return wdlToMoverWinPercent(result.wdl);
+    // fallback path (no WDL reported by this engine)
+    if(result.mate !== null && result.mate !== undefined){
+      return result.mate > 0 ? 99.5 : 0.5;
+    }
+    return winPercentFromCp(result.cp || 0);
+  }
+
+  function resultToWhitePercent(result, fen){
+    const sideToMove = (new Chess(fen)).turn();
+    const moverPct = resultToMoverWinPercent(result);
+    return sideToMove === 'b' ? (100 - moverPct) : moverPct;
+  }
+
+  function classifyOneMove(pctBeforeWhite, pctAfterWhite, mover, playedUci, bestUciAtBefore, verboseMv){
+    const pctBeforeMover = mover === 'w' ? pctBeforeWhite : (100 - pctBeforeWhite);
+    const pctAfterMover  = mover === 'w' ? pctAfterWhite  : (100 - pctAfterWhite);
+    const winPercentLoss = Math.max(0, pctBeforeMover - pctAfterMover);
+    const isBest = bestUciAtBefore && playedUci === bestUciAtBefore;
+
+    let cls, label;
+    const isGoodSac = isBest && verboseMv.captured &&
+      PIECE_VALUE[verboseMv.piece] > PIECE_VALUE[verboseMv.captured] && winPercentLoss <= 3;
+
+    if(isGoodSac){ cls='brilliant'; label='رائعة'; }
+    else if(isBest || winPercentLoss <= 1){ cls='best'; label='أفضل نقلة'; }
+    else if(winPercentLoss <= 3){ cls='excellent'; label='ممتازة'; }
+    else if(winPercentLoss <= 6){ cls='good'; label='جيدة'; }
+    else if(winPercentLoss <= 12){ cls='inaccuracy'; label='غير دقيقة'; }
+    else if(winPercentLoss <= 25){ cls='mistake'; label='خطأ'; }
+    else { cls='blunder'; label='خطأ فادح'; }
+
+    const moveAcc = moveAccuracyFromLoss(winPercentLoss);
+
+    return {cls, label, loss: winPercentLoss, moveAcc, mover};
+  }
+
+  function playedUciFor(verboseMv){
+    return verboseMv.from + verboseMv.to + (verboseMv.promotion || '');
+  }
+
+  function renderProgress(prefix, current, total, fillId, labelId){
+    const fill = document.getElementById(fillId);
+    const label = document.getElementById(labelId);
+    const pct = total > 0 ? Math.round((current/total)*100) : 0;
+    if(fill) fill.style.width = pct + '%';
+    if(label) label.textContent = `${prefix} ${current} / ${total}`;
+  }
+
+  function renderAccuracySummary(whiteAcc, blackAcc){
+    const el = document.getElementById('accuracySummary');
+    if(!el) return;
+    el.style.display = 'flex';
+    el.innerHTML = `
+      <div class="accuracy-card"><div class="who">دقة الأبيض</div><div class="pct">${whiteAcc.toFixed(1)}%</div></div>
+      <div class="accuracy-card"><div class="who">دقة الأسود</div><div class="pct">${blackAcc.toFixed(1)}%</div></div>
+    `;
+  }
+
+  function renderEvalGraph(evals){
+    const svg = document.getElementById('evalGraph');
+    if(!svg || evals.length < 2) return;
+    svg.style.display = 'block';
+    const w = 300, h = 64;
+    const n = evals.length;
+    const pts = evals.map((whitePct, i) => {
+      const x = (i/(n-1)) * w;
+      const y = h - (whitePct/100) * h;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    svg.innerHTML = `
+      <rect x="0" y="0" width="${w}" height="${h/2}" fill="#3a2a1a"></rect>
+      <rect x="0" y="${h/2}" width="${w}" height="${h/2}" fill="#1a1208"></rect>
+      <line x1="0" y1="${h/2}" x2="${w}" y2="${h/2}" stroke="#c9a22755" stroke-width="1"></line>
+      <polyline points="${pts}" fill="none" stroke="#c9a227" stroke-width="2"></polyline>
+    `;
+  }
+
+  // Terminal positions (checkmate/stalemate/draw) have no "next move" to
+  // search, so the engine can't meaningfully return WDL for them — this is
+  // expected, not a failure. Handle them directly instead of querying.
+  function terminalWhitePercent(fen){
+    try{
+      const c = new Chess(fen);
+      if(c.in_checkmate()) return c.turn() === 'w' ? 0 : 100; // side to move got mated
+      if(c.in_stalemate() || c.in_draw() || c.in_threefold_repetition() || c.insufficient_material()) return 50;
+    } catch(e){}
+    return null;
+  }
+
+  async function analyzeFullGame(){
+    if(!positions || positions.length < 2 || fullGameAnalysisRunning) return;
+    if(enginePool.length === 0 && !sfFailed){ await initStockfish(); }
+    if(enginePool.length === 0){ setStatus('تعذّر تشغيل محرك التحليل على هذا الجهاز.', 'err'); return; }
+
+    fullGameAnalysisRunning = true;
+    const btn = document.getElementById('analyzeGameBtn');
+    if(btn) btn.disabled = true;
+    const progressWrap = document.getElementById('gameProgress');
+    if(progressWrap) progressWrap.style.display = 'block';
+
+    const movetimeMs = 2500;
+    const evals = new Array(positions.length);
+    const bestUcis = new Array(positions.length);
+    const usedWdl = new Array(positions.length).fill(false);
+    let terminalCount = 0;
+    let completed = 0;
+
+    const toAnalyze = []; // indices that actually need an engine query
+    for(let i = 0; i < positions.length; i++){
+      const term = terminalWhitePercent(positions[i]);
+      if(term !== null){
+        evals[i] = term;
+        bestUcis[i] = null;
+        terminalCount++;
+        completed++;
+      } else {
+        toAnalyze.push(i);
+      }
+    }
+    renderProgress('جاري تحليل المواضع (متوازي)', completed, positions.length, 'gameProgressFill', 'gameProgressLabel');
+
+    const fensToAnalyze = toAnalyze.map(i => positions[i]);
+    await runPoolBulk(fensToAnalyze, movetimeMs, undefined, (localIdx, r) => {
+      const i = toAnalyze[localIdx];
+      evals[i] = resultToWhitePercent(r, positions[i]);
+      bestUcis[i] = r.bestmove;
+      usedWdl[i] = !!r.wdl;
+      completed++;
+      renderProgress('جاري تحليل المواضع (متوازي)', completed, positions.length, 'gameProgressFill', 'gameProgressLabel');
+    });
+
+    // retry (also in parallel) any position that missed WDL on the first pass
+    const retryIndices = toAnalyze.filter(i => !usedWdl[i]);
+    if(retryIndices.length > 0){
+      const retryFens = retryIndices.map(i => positions[i]);
+      await runPoolBulk(retryFens, movetimeMs, undefined, (localIdx, r) => {
+        const i = retryIndices[localIdx];
+        if(r.wdl){
+          evals[i] = resultToWhitePercent(r, positions[i]);
+          bestUcis[i] = r.bestmove;
+          usedWdl[i] = true;
+        }
+      });
+    }
+
+    const wdlCount = toAnalyze.filter(i => usedWdl[i]).length;
+    const fallbackCount = toAnalyze.length - wdlCount;
+    evalsWhitePOV = evals;
+
+    let whiteTotal = 0, whiteCount = 0, blackTotal = 0, blackCount = 0;
+    moveClass = [];
+    for(let i = 0; i < verboseMoves.length; i++){
+      const mover = i % 2 === 0 ? 'w' : 'b';
+      const playedUci = playedUciFor(verboseMoves[i]);
+      const c = classifyOneMove(evals[i], evals[i+1], mover, playedUci, bestUcis[i], verboseMoves[i]);
+      moveClass[i] = c;
+      if(mover === 'w'){ whiteTotal += c.moveAcc; whiteCount++; }
+      else { blackTotal += c.moveAcc; blackCount++; }
+    }
+
+    if(progressWrap) progressWrap.style.display = 'none';
+    if(btn) btn.disabled = false;
+    fullGameAnalysisRunning = false;
+
+    renderAccuracySummary(whiteCount ? whiteTotal/whiteCount : 100, blackCount ? blackTotal/blackCount : 100);
+    renderWdlQuality(wdlCount, fallbackCount, terminalCount, 'accuracySummary');
+    renderEvalGraph(evals);
+    renderMovesList();
+    requestAnalysis(true);
+  }
+
+  function renderWdlQuality(wdlCount, fallbackCount, terminalCount, afterElId){
+    const analyzed = wdlCount + fallbackCount;
+    if(analyzed === 0) return;
+    const el = document.getElementById(afterElId);
+    if(!el) return;
+    const pct = ((wdlCount/analyzed)*100).toFixed(0);
+    const note = document.createElement('div');
+    note.style.cssText = 'text-align:center;font-size:11px;color:var(--ink-dim);margin-top:4px;direction:rtl;';
+    note.textContent = fallbackCount === 0
+      ? `جودة البيانات: WDL حقيقي لكل المواضع (${wdlCount}/${analyzed})`
+      : `جودة البيانات: WDL حقيقي لـ ${pct}% من المواضع (${wdlCount}/${analyzed}) — ${fallbackCount} موضع استخدم تقدير تقريبي`;
+    el.parentNode.insertBefore(note, el.nextSibling);
+  }
+
+  /* ---------- batch analysis: last N games ---------- */
+  const batchAnalyzeBtn = document.getElementById('batchAnalyzeBtn');
+  if(batchAnalyzeBtn){
+    batchAnalyzeBtn.addEventListener('click', () => analyzeBatch());
+  }
+
+  async function analyzeBatch(){
+    if(fullGameAnalysisRunning || games.length === 0) return;
+    if(enginePool.length === 0 && !sfFailed){ await initStockfish(); }
+    if(enginePool.length === 0){ setStatus('تعذّر تشغيل محرك التحليل على هذا الجهاز.', 'err'); return; }
+
+    fullGameAnalysisRunning = true;
+    batchAnalyzeBtn.disabled = true;
+    const progressWrap = document.getElementById('batchProgress');
+    const resultsEl = document.getElementById('batchResults');
+    if(progressWrap) progressWrap.style.display = 'block';
+    resultsEl.innerHTML = '';
+
+    const subset = games.slice(0, 10);
+    const movetimeMs = 1200; // shorter than full-game analysis since this covers many positions across 10 games
+    const rows = [];
+    let totalWdl = 0, totalFallback = 0;
+
+    for(let gi = 0; gi < subset.length; gi++){
+      const g = subset[gi];
+      let gamePositions, gameVerbose;
+      try{
+        const c = new Chess();
+        const cleaned = preprocessPgn(g.pgn);
+        let ok = c.load_pgn(cleaned, {sloppy:true});
+        if(!ok){
+          const movesOnly = cleaned.split('\n').filter(l => !/^\s*\[/.test(l)).join(' ').trim();
+          ok = c.load_pgn(movesOnly, {sloppy:true});
+        }
+        if(!ok) throw new Error('bad_pgn');
+        const hist = c.history({verbose:true});
+        const replay = new Chess();
+        gamePositions = [replay.fen()];
+        gameVerbose = [];
+        hist.forEach(mv => { replay.move(mv.san, {sloppy:true}); gamePositions.push(replay.fen()); gameVerbose.push(mv); });
+      } catch(e){
+        rows.push({opponent: g.opponent, myColorCode: g.myColorCode, accuracy: null});
+        continue;
+      }
+
+      const evals = new Array(gamePositions.length);
+      const bestUcis = new Array(gamePositions.length);
+      const toAnalyze = [];
+      let completed = 0;
+      for(let i = 0; i < gamePositions.length; i++){
+        const term = terminalWhitePercent(gamePositions[i]);
+        if(term !== null){
+          evals[i] = term;
+          bestUcis[i] = null;
+          completed++;
+        } else {
+          toAnalyze.push(i);
+        }
+      }
+      renderProgress(`مباراة ${gi+1}/${subset.length} — موضع (متوازي)`, completed, gamePositions.length, 'batchProgressFill', 'batchProgressLabel');
+
+      const fensToAnalyze = toAnalyze.map(i => gamePositions[i]);
+      await runPoolBulk(fensToAnalyze, movetimeMs, undefined, (localIdx, r) => {
+        const i = toAnalyze[localIdx];
+        if(r.wdl) totalWdl++; else totalFallback++;
+        evals[i] = resultToWhitePercent(r, gamePositions[i]);
+        bestUcis[i] = r.bestmove;
+        completed++;
+        renderProgress(`مباراة ${gi+1}/${subset.length} — موضع (متوازي)`, completed, gamePositions.length, 'batchProgressFill', 'batchProgressLabel');
+      });
+
+      let myTotal = 0, myCount = 0;
+      for(let i = 0; i < gameVerbose.length; i++){
+        const mover = i % 2 === 0 ? 'w' : 'b';
+        if(mover !== g.myColorCode) continue;
+        const playedUci = playedUciFor(gameVerbose[i]);
+        const c = classifyOneMove(evals[i], evals[i+1], mover, playedUci, bestUcis[i], gameVerbose[i]);
+        myTotal += c.moveAcc; myCount++;
+      }
+      rows.push({opponent: g.opponent, resultLabel: g.resultLabel, resultCls: g.resultCls, accuracy: myCount ? myTotal/myCount : null});
+      renderBatchResults(rows);
+    }
+
+    if(progressWrap) progressWrap.style.display = 'none';
+    batchAnalyzeBtn.disabled = false;
+    fullGameAnalysisRunning = false;
+    renderWdlQuality(totalWdl, totalFallback, 0, 'batchResults');
+  }
+
+  function renderBatchResults(rows){
+    const el = document.getElementById('batchResults');
+    if(!el) return;
+    el.innerHTML = rows.map(r => `
+      <div class="batch-row">
+        <span>ضد ${escapeHtml(r.opponent)} ${r.resultLabel ? '('+escapeHtml(r.resultLabel)+')' : ''}</span>
+        <span class="acc">${r.accuracy !== null ? r.accuracy.toFixed(1) + '%' : 'تعذّر'}</span>
+      </div>
+    `).join('');
+  }
+
+  /* ---------- wire up ---------- */
+  searchBtn.addEventListener('click', searchPlayer);
+  usernameInput.addEventListener('keydown', e => { if(e.key === 'Enter') searchPlayer(); });
+  // Stockfish loads lazily on first analysis request, not on page open,
+  // so the app itself always opens instantly.
+})();
+
+</script>
+</body>
+</html>

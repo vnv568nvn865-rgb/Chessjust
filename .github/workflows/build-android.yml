@@ -38,9 +38,16 @@ jobs:
           mkdir -p www/vendor www/vendor/pieces
           curl -fL -o www/vendor/chess.min.js https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js
 
-          # Primary engine: Stockfish 18 with NNUE (much stronger evaluation
-          # than classical Stockfish), single-threaded build so it needs no
-          # special CORS/cross-origin-isolation headers inside the WebView.
+          # Primary engine: FULL-strength Stockfish 18 NNUE, single-threaded
+          # (no CORS/cross-origin-isolation headers needed). Stronger per-node
+          # evaluation than the "lite" build we used before.
+          curl -fL -o www/vendor/stockfish-18-single.js \
+            https://github.com/nmrugg/stockfish.js/releases/download/v18.0.0/stockfish-18-single.js
+          curl -fL -o www/vendor/stockfish-18-single.wasm \
+            https://github.com/nmrugg/stockfish.js/releases/download/v18.0.0/stockfish-18-single.wasm
+
+          # Secondary tier: lighter NNUE build, in case the full one fails on
+          # a particular device (memory, older WebView, etc.)
           curl -fL -o www/vendor/stockfish-18-lite-single.js \
             https://github.com/nmrugg/stockfish.js/releases/download/v18.0.0/stockfish-18-lite-single.js
           curl -fL -o www/vendor/stockfish-18-lite-single.wasm \

@@ -41,6 +41,8 @@
     font-family:var(--font-body);
   }
   .theme-btn:hover{border-color:var(--gold);}
+  .coach-btn{background:var(--gold-dim);color:#241812;font-weight:bold;border-color:var(--gold-dim);}
+  .coach-btn:hover{background:var(--gold);border-color:var(--gold);}
 
   .layout{
     display:grid; grid-template-columns: 1fr 340px; gap:18px;
@@ -216,6 +218,7 @@
       <span>Chess Analyzer — مدعوم بمحرك Stockfish</span>
     </div>
   </div>
+  <button class="theme-btn coach-btn" id="coachBtn">♟️ مدرب Chessjust</button>
   <button class="theme-btn" id="themeToggle">الوضع الليلي / النهاري</button>
 </div>
 
@@ -1272,6 +1275,24 @@
   /* ---------- wire up ---------- */
   searchBtn.addEventListener('click', searchPlayer);
   usernameInput.addEventListener('keydown', e => { if(e.key === 'Enter') searchPlayer(); });
+
+  /* ---------- مدرب Chessjust ---------- */
+  const coachBtn = document.getElementById('coachBtn');
+  if(coachBtn){
+    coachBtn.addEventListener('click', () => {
+      // تمرير اسم المستخدم للمدرب
+      const u = usernameInput ? usernameInput.value.trim() : '';
+      if(u) sessionStorage.setItem('cj_user', u);
+      // تمرير PGN المباراة الحالية إن وجدت
+      if(activeGameIndex >= 0 && games[activeGameIndex] && games[activeGameIndex].pgn){
+        sessionStorage.setItem('cj_pgn', games[activeGameIndex].pgn);
+      } else if(pgnInput && pgnInput.value.trim()){
+        sessionStorage.setItem('cj_pgn', pgnInput.value.trim());
+      }
+      window.location.href = 'coach.html';
+    });
+  }
+
   // Stockfish loads lazily on first analysis request, not on page open,
   // so the app itself always opens instantly.
 })();

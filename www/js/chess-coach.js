@@ -378,3 +378,4 @@ class ChessCoach {
 
 if (typeof window !== 'undefined') window.ChessCoach = ChessCoach;
 if (typeof module !== 'undefined') module.exports = ChessCoach;
+             

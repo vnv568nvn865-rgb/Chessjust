@@ -744,11 +744,16 @@
       const cpMatch = line.match(/score cp (-?\d+)/);
       const mateMatch = line.match(/score mate (-?\d+)/);
       const wdlMatch = line.match(/wdl (\d+) (\d+) (\d+)/);
-      if(cpMatch || mateMatch){
+      // بعض إصدارات Stockfish ترسل WDL في info line مختلفة عن score cp.
+      // خزّن كل جزء بشكل مستقل حتى لا نفقد WDL أو cp بين السطور.
+      if(cpMatch || mateMatch || wdlMatch){
         slot.pendingInfo = {
-          cp: cpMatch ? parseInt(cpMatch[1], 10) : null,
-          mate: mateMatch ? parseInt(mateMatch[1], 10) : null,
-          wdl: wdlMatch ? {w: parseInt(wdlMatch[1],10), d: parseInt(wdlMatch[2],10), l: parseInt(wdlMatch[3],10)} : (slot.pendingInfo ? slot.pendingInfo.wdl : null)
+          cp: cpMatch ? parseInt(cpMatch[1], 10) :
+              (slot.pendingInfo ? slot.pendingInfo.cp : null),
+          mate: mateMatch ? parseInt(mateMatch[1], 10) :
+                (slot.pendingInfo ? slot.pendingInfo.mate : null),
+          wdl: wdlMatch ? {w: parseInt(wdlMatch[1],10), d: parseInt(wdlMatch[2],10), l: parseInt(wdlMatch[3],10)} :
+               (slot.pendingInfo ? slot.pendingInfo.wdl : null)
         };
       }
       if(line.startsWith('bestmove')){
@@ -958,21 +963,22 @@
     return Math.min(100, Math.max(0, acc));
   }
 
-  // Convert the engine's own WDL (per-mille, from the perspective of the side
-  // to move) into a 0–100 win percentage. This is immune to any future change
-  // in how a given Stockfish version scales its raw "cp" number — the engine
-  // calibrates WDL against its own real win-rate model directly.
+  // WDL يعرض احتمالية فوز تقريبية، لكنه يتشبع كثيرًا عند المراكز الرابحة.
+  // Accuracy وتصنيف النقلات يحتاجان إشارة أكثر دقة، لذلك نستخدم cp أولًا.
   function wdlToMoverWinPercent(wdl){
     return (wdl.w + wdl.d * 0.5) / 10;
   }
 
   function resultToMoverWinPercent(result){
-    if(result.wdl) return wdlToMoverWinPercent(result.wdl);
-    // fallback path (no WDL reported by this engine)
+    if(!result) return 50;
     if(result.mate !== null && result.mate !== undefined){
       return result.mate > 0 ? 99.5 : 0.5;
     }
-    return winPercentFromCp(result.cp || 0);
+    if(typeof result.cp === 'number' && Number.isFinite(result.cp)){
+      return winPercentFromCp(result.cp);
+    }
+    if(result.wdl) return wdlToMoverWinPercent(result.wdl);
+    return 50;
   }
 
   function resultToWhitePercent(result, fen){
@@ -991,11 +997,18 @@
     const isGoodSac = isBest && verboseMv.captured &&
       PIECE_VALUE[verboseMv.piece] > PIECE_VALUE[verboseMv.captured] && winPercentLoss <= 3;
 
+    const isTactical = !!(verboseMv?.captured ||
+      verboseMv?.flags?.includes?.('c') ||
+      verboseMv?.san?.includes?.('+') ||
+      verboseMv?.san?.includes?.('#'));
+    const isGreat = !isBest && isTactical && winPercentLoss <= 0.75;
+
     if(isGoodSac){ cls='brilliant'; label='رائعة'; }
-    else if(isBest || winPercentLoss <= 1){ cls='best'; label='أفضل نقلة'; }
-    else if(winPercentLoss <= 3){ cls='excellent'; label='ممتازة'; }
-    else if(winPercentLoss <= 6){ cls='good'; label='جيدة'; }
-    else if(winPercentLoss <= 12){ cls='inaccuracy'; label='غير دقيقة'; }
+    else if(isBest){ cls='best'; label='أفضل نقلة'; }
+    else if(isGreat){ cls='great'; label='مدهشة'; }
+    else if(winPercentLoss <= 5){ cls='excellent'; label='ممتازة'; }
+    else if(winPercentLoss <= 10){ cls='good'; label='جيدة'; }
+    else if(winPercentLoss <= 18){ cls='inaccuracy'; label='غير دقيقة'; }
     else if(winPercentLoss <= 25){ cls='mistake'; label='خطأ'; }
     else { cls='blunder'; label='خطأ فادح'; }
 

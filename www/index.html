@@ -432,7 +432,7 @@
           <div class="meta">لوني: ${g.myColor} · ${g.timeClass} · ${fmtDate(g.endTime)}</div>
         </div>
         <span class="badge ${g.resultCls}">${g.resultLabel}</span>
-      `;
+        `;
       const activate = () => selectGame(idx);
       row.addEventListener('click', activate);
       row.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); activate(); }});
@@ -866,7 +866,7 @@
     const r = await queryOnSlot(slot, fen, nodes, timeoutMs);
     slot.busy = false;
     return r;
-  }
+    }
 
   // parallel bulk executor: runs `fens` across all pool workers concurrently
   // (pull-based queue — whichever worker frees up first grabs the next

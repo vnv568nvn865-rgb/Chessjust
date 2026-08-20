@@ -351,3 +351,4 @@ class ChessMini {
 // تصدير
 if (typeof window !== 'undefined') window.ChessMini = ChessMini;
 if (typeof module !== 'undefined') module.exports = ChessMini;
+        

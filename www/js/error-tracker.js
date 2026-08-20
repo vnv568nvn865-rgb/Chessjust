@@ -151,3 +151,4 @@ class ErrorTracker {
 
 if (typeof window !== 'undefined') window.ErrorTracker = ErrorTracker;
 if (typeof module !== 'undefined') module.exports = ErrorTracker;
+

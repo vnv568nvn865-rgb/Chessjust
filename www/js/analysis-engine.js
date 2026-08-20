@@ -282,53 +282,62 @@ class AnalysisEngine {
   static classifyMove(whitePctBefore, whitePctAfter, mover, playedUci, bestUci, verboseMv) {
     const PV = { p:1, n:3, b:3, r:5, q:9, k:0 };
 
-    const pBefore = mover === 'w' ? whitePctBefore : (100 - whitePctBefore);
-    const pAfter  = mover === 'w' ? whitePctAfter  : (100 - whitePctAfter);
-    const loss    = Math.max(0, pBefore - pAfter);
-    const isBest  = !!(bestUci && playedUci === bestUci);
+    // حماية من null/undefined
+    const wpB = (typeof whitePctBefore === 'number' && !isNaN(whitePctBefore)) ? whitePctBefore : 50;
+    const wpA = (typeof whitePctAfter  === 'number' && !isNaN(whitePctAfter))  ? whitePctAfter  : 50;
 
-    /* Brilliant: تضحية حقيقية
-     * الشروط الثلاثة مجتمعة (صارمة):
+    const pBefore = mover === 'w' ? wpB : (100 - wpB);
+    const pAfter  = mover === 'w' ? wpA : (100 - wpA);
+    const loss    = Math.max(0, pBefore - pAfter);
+
+    // isBest: يشترط وجود كلا الـ UCI ومطابقتهما
+    const isBest = !!(bestUci && bestUci !== 'null' && bestUci !== '(none)' &&
+                      playedUci && playedUci === bestUci);
+
+    /* Brilliant (رائعة ‼):
      * 1. نفس نقلة المحرك
-     * 2. اللاعب أخذ قطعة أقل قيمة بقطعة أعلى قيمة (تضحية مادية ظاهرة)
-     * 3. الموضع لا يزال في صالحه (loss ≤ 3%)
+     * 2. تضحية حقيقية (أخذ قطعة أقل قيمة بقطعة أعلى)
+     * 3. النقلة لا تزال في صالح اللاعب (loss ≤ 3%)
      */
     const isGoodSac = isBest &&
       verboseMv?.captured &&
-      PV[verboseMv.piece] > PV[verboseMv.captured] &&
+      (PV[verboseMv.piece] || 0) > (PV[verboseMv.captured] || 0) &&
       loss <= 3;
 
-    /* Missed Opportunity:
-     * كان يملك ميزة حاسمة (>65%) لكنه خسر >10% بنقلة واحدة
-     * وهي ليست نقلة المحرك الأفضل
+    /* Great (مدهشة !):
+     * نقلة ممتازة جداً لكنها ليست نفس نقلة المحرك بالضبط.
+     * يعكس إيجاد بديل إبداعي بنفس الجودة تقريباً.
+     * الشرط: loss ≤ 2% وليس أفضل نقلة
      */
+    const isGreat = !isBest && loss <= 2 && !!(playedUci);
+
+    // Missed Opportunity
     const missedOpportunity = pBefore > 65 && loss > 10 && !isBest;
 
     let type, labelAr, symbol;
-    if (isGoodSac)       { type='brilliant';  labelAr='رائعة';      symbol='‼'; }
-    else if (isBest)     { type='best';       labelAr='أفضل نقلة';  symbol='★'; }
-    else if (loss <= 2)  { type='excellent';  labelAr='ممتازة';      symbol='!'; }
-    else if (loss <= 5)  { type='good';       labelAr='جيدة';        symbol=''; }
-    else if (loss <= 10) { type='inaccuracy'; labelAr='غير دقيقة';   symbol='?!'; }
-    else if (loss <= 20) { type='mistake';    labelAr='خطأ';          symbol='?'; }
-    else                 { type='blunder';    labelAr='خطأ فادح';     symbol='??'; }
+    if      (isGoodSac)       { type='brilliant';  labelAr='رائعة';      symbol='‼'; }
+    else if (isBest)          { type='best';       labelAr='أفضل نقلة';  symbol='★'; }
+    else if (isGreat)         { type='great';      labelAr='مدهشة';       symbol='!'; }
+    else if (loss <= 5)       { type='excellent';  labelAr='ممتازة';       symbol=''; }
+    else if (loss <= 10)      { type='good';       labelAr='جيدة';         symbol=''; }
+    else if (loss <= 18)      { type='inaccuracy'; labelAr='غير دقيقة';    symbol='?!'; }
+    else if (loss <= 25)      { type='mistake';    labelAr='خطأ';           symbol='?'; }
+    else                      { type='blunder';    labelAr='خطأ فادح';      symbol='??'; }
 
     if (missedOpportunity && (type === 'mistake' || type === 'inaccuracy')) {
-      labelAr = 'تضييع فرصة';
-      symbol  = '⚡';
+      labelAr = 'تضييع فرصة'; symbol = '⚡';
     }
 
     const COLORS = {
-      brilliant:'#37c6e0', best:'#5f9e6e', excellent:'#7fb87a', good:'#9fc98a',
-      inaccuracy:'#d9b64e', mistake:'#d98a3f', blunder:'#c95a4a'
+      brilliant:'#37c6e0', best:'#5f9e6e', great:'#7fb87a', excellent:'#9fc98a',
+      good:'#b5d4a0', inaccuracy:'#d9b64e', mistake:'#d98a3f', blunder:'#c95a4a'
     };
+    const color = COLORS[type] || '#9fc98a';
 
     return {
       type, labelAr, symbol, loss, missedOpportunity,
       moveAcc: AnalysisEngine.moveAccuracy(loss),
-      color:   COLORS[type],
-      bg:      COLORS[type] + '22',
-      mover
+      color, bg: color + '22', mover
     };
   }
 
@@ -343,18 +352,25 @@ class AnalysisEngine {
   static gameAccuracy(classifications, whitePcts, mover) {
     let total = 0, weight = 0;
     for (let i = 0; i < classifications.length; i++) {
-      if (classifications[i].mover !== mover) continue;
-      const acc   = classifications[i].moveAcc;
+      const c = classifications[i];
+      // استخدم isPlayer كمرجع احتياطي إذا كان mover غير متطابق
+      const isPlayerMove = (c.mover === mover) || (!c.mover && c.isPlayer);
+      if (!isPlayerMove) continue;
+
+      const acc   = typeof c.moveAcc === 'number' ? c.moveAcc : 0;
       const start = Math.max(0, i - 2);
-      const end   = Math.min(whitePcts.length - 1, i + 2);
-      const slice = whitePcts.slice(start, end + 1);
-      const mean  = slice.reduce((a, b) => a + b, 0) / slice.length;
-      const variance = slice.reduce((a, b) => a + (b - mean) ** 2, 0) / slice.length;
+      const end   = Math.min((whitePcts.length || 1) - 1, i + 3);
+      const slice = whitePcts.slice(start, end + 1).filter(v => typeof v === 'number');
+      const mean  = slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 50;
+      const variance = slice.length
+        ? slice.reduce((a, b) => a + (b - mean) ** 2, 0) / slice.length : 0;
       const vol   = Math.max(0.5, Math.sqrt(variance));
       total  += acc * vol;
       weight += vol;
     }
-    return weight > 0 ? total / weight : 100;
+    // 0 بدل 100 عند لا نقلات — يوضح للمستخدم أن التحليل غير مكتمل
+    if (weight === 0) return 0;
+    return Math.max(0, Math.min(100, total / weight));
   }
 
   /* ══════════════════════════════════════

@@ -113,7 +113,7 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .acc-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
 .acc-num{font-size:28px;font-weight:bold;color:var(--gold);font-family:var(--fm);}
 .acc-lbl{font-size:10px;color:var(--ink-dim);}
-.sc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;}
+.sc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px;}
 .sc-box{background:var(--panel2);border-radius:7px;padding:7px;text-align:center;}
 .sc-n{font-size:17px;font-weight:bold;}
 .sc-l{font-size:10px;color:var(--ink-dim);margin-top:1px;}
@@ -131,9 +131,9 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .mv-cell.cur{background:var(--gold);color:#241812;font-weight:bold;}
 .mv-ic{font-size:11px;}
 .mv-ic.brilliant{color:var(--brilliant);}.mv-ic.best{color:var(--best);}
-.mv-ic.excellent{color:var(--excellent);}.mv-ic.good{color:var(--good);}
-.mv-ic.inaccuracy{color:var(--inaccuracy);}.mv-ic.mistake{color:var(--mistake);}
-.mv-ic.blunder{color:var(--blunder);}
+.mv-ic.great{color:var(--excellent);}.mv-ic.excellent{color:var(--good);}
+.mv-ic.good{color:#b5d4a0;}.mv-ic.inaccuracy{color:var(--inaccuracy);}
+.mv-ic.mistake{color:var(--mistake);}.mv-ic.blunder{color:var(--blunder);}
 
 /* ── EXPLANATION ── */
 .expl{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0;}
@@ -281,7 +281,7 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
       </div>
       <div style="text-align:center">
         <div class="acc-num" id="acc-val">—</div>
-        <div class="acc-lbl">الدقة %</div>
+        <div class="acc-lbl" id="acc-lbl">الدقة %</div>
       </div>
     </div>
     <div class="sc-grid" id="sc-grid" style="display:none"></div>
@@ -325,7 +325,12 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 <!-- ═══ BOARD ═══ -->
 <div id="pane-board" class="pane">
   <div class="board-wrap">
-    <div class="board-ctrl">
+    <div class="board-outer">
+      <div class="chess-board" id="chess-board"></div>
+    </div>
+
+    <!-- أزرار التحكم أسفل الرقعة -->
+    <div class="board-ctrl" style="margin-top:10px">
       <button class="btn btn-sm btn-out" onclick="bNav(-999)">⏮</button>
       <button class="btn btn-sm btn-out" onclick="bNav(-1)">◀</button>
       <button class="btn btn-sm btn-out" onclick="bNav(1)">▶</button>
@@ -335,9 +340,6 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
       <button class="btn btn-sm" onclick="bShowBest()">💡 أفضل نقلة</button>
       <button class="btn btn-sm btn-out" onclick="bFlip()">🔄 قلب</button>
       <button class="btn btn-sm btn-out" id="btn-try" onclick="bTry()">🎮 جرّب</button>
-    </div>
-    <div class="board-outer">
-      <div class="chess-board" id="chess-board"></div>
     </div>
     <div class="eval-row">
       <div style="font-size:11px;color:var(--ink-dim)" id="board-pos">—</div>
@@ -425,14 +427,24 @@ const S = {
 };
 
 const PIECE_IMG = (c, t) => `./vendor/pieces/${c}${t.toUpperCase()}.svg`;
-const MOVE_ICON = { brilliant:'‼', best:'★', excellent:'!', good:'',
-                    inaccuracy:'?!', mistake:'?', blunder:'??' };
+const MOVE_ICON = {
+  brilliant:'‼', best:'★', great:'!', excellent:'', good:'',
+  inaccuracy:'?!', mistake:'?', blunder:'??'
+};
+const CLS_COLOR = {
+  brilliant:'#37c6e0', best:'#5f9e6e', great:'#7fb87a', excellent:'#9fc98a',
+  good:'#b5d4a0', inaccuracy:'#d9b64e', mistake:'#d98a3f', blunder:'#c95a4a'
+};
 
 /* ════════════════════════════════════════
    INIT
 ════════════════════════════════════════ */
 async function init() {
   buildLevelUI();
+  // دفع حالة ابتدائية للتاريخ حتى يعمل زر الرجوع بشكل صحيح
+  if (window.history?.replaceState) {
+    history.replaceState({ tab: 'setup' }, '', '');
+  }
   const u = localStorage.getItem('cj_coach_user') || sessionStorage.getItem('cj_user');
   if (u) { S.username = u; document.getElementById('inp-user').value = u;
            S.tracker = new ErrorTracker(u); }
@@ -687,15 +699,32 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   S.playerIsWhite = playerIsWhite;
   const { sans, verbose } = parsedMoves;
 
-  // ─ واجهة ─
+  // ══ إعادة تعيين الحالة الكاملة بين المباريات ══
+  S.fens          = [];
+  S.sanMoves      = [];
+  S.verboseMoves  = [];
+  S.engineResults = [];
+  S.whitePcts     = [];
+  S.moveCls       = [];
+  S.board         = { idx:0, flipped:S.board.flipped, bestSqs:null, selSq:null, tryMode:false };
+
+  // ══ إعادة تعيين واجهة المستخدم بالكامل ══
   document.getElementById('an-header').style.display = 'block';
   document.getElementById('an-title').textContent = meta.title;
   document.getElementById('an-sub').textContent   = meta.sub;
   document.getElementById('acc-val').textContent  = '—';
+  document.getElementById('acc-lbl').textContent  = 'جاري الحساب...';
   document.getElementById('sc-grid').style.display = 'none';
+  document.getElementById('sc-grid').innerHTML    = '';
   document.getElementById('moments-card').style.display = 'none';
+  document.getElementById('moments-list').innerHTML = '';
   document.getElementById('summary-card').style.display = 'none';
+  document.getElementById('strengths').innerHTML  = '';
+  document.getElementById('weaknesses').innerHTML = '';
   document.getElementById('expl-wrap').innerHTML  = '';
+  document.getElementById('compare-box').style.display = 'none';
+  document.getElementById('eval-svg').innerHTML   = '';
+  document.getElementById('board-expl').textContent = 'انقر على نقلة في قائمة التحليل';
   const mvGrid = document.getElementById('mv-grid');
   mvGrid.innerHTML = '';
 
@@ -768,10 +797,21 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   // ─ رسم النقلات ─
   renderMoveList(mvGrid);
 
-  // ─ دقة المباراة ─
+  // ─ دقة المباراة (نقلات اللاعب فقط) ─
   const playerMover = playerIsWhite ? 'w' : 'b';
   const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, S.whitePcts, playerMover);
-  document.getElementById('acc-val').textContent = Math.round(gameAcc) + '%';
+  const playerMoveCount = S.moveCls.filter(c =>
+    c.mover === playerMover || (!c.mover && c.isPlayer)
+  ).length;
+
+  if (playerMoveCount === 0) {
+    document.getElementById('acc-val').textContent = '—';
+    document.getElementById('acc-lbl').textContent = 'لا نقلات';
+  } else {
+    document.getElementById('acc-val').textContent = Math.round(gameAcc) + '%';
+    document.getElementById('acc-lbl').textContent =
+      `دقة ${playerIsWhite ? 'الأبيض' : 'الأسود'} (${playerMoveCount} نقلة)`;
+  }
 
   // ─ إحصاءات ─
   renderStats();
@@ -892,19 +932,25 @@ function showExplanation(i) {
    STATS & SUMMARY
 ════════════════════════════════════════ */
 function renderStats() {
-  const player = S.moveCls.filter(c => c.isPlayer);
-  const counts = { brilliant:0, best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0 };
+  const player = S.moveCls.filter(c =>
+    c.mover === (S.playerIsWhite ? 'w' : 'b') || (!c.mover && c.isPlayer)
+  );
+  const counts = { brilliant:0, best:0, great:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0 };
   player.forEach(c => { if (counts[c.type] !== undefined) counts[c.type]++; });
+
   const sg = document.getElementById('sc-grid');
   sg.style.display = 'grid';
   sg.innerHTML = [
-    [counts.blunder,    'خطأ فادح',  'var(--blunder)'],
-    [counts.mistake,    'خطأ',        'var(--mistake)'],
-    [counts.inaccuracy, 'غير دقيق',  'var(--inaccuracy)'],
-    [counts.good,       'جيدة',       'var(--good)'],
-    [counts.best + counts.excellent, 'ممتازة', 'var(--excellent)'],
-    [counts.brilliant,  'رائعة',      'var(--brilliant)'],
-  ].map(([n,l,c]) => `<div class="sc-box">
+    [counts.blunder,              'خطأ فادح',   CLS_COLOR.blunder],
+    [counts.mistake,              'خطأ',          CLS_COLOR.mistake],
+    [counts.inaccuracy,           'غير دقيقة',   CLS_COLOR.inaccuracy],
+    [counts.good,                 'جيدة',          CLS_COLOR.good],
+    [counts.excellent,            'ممتازة',        CLS_COLOR.excellent],
+    [counts.great,                'مدهشة',         CLS_COLOR.great],
+    [counts.best,                 'أفضل نقلة',   CLS_COLOR.best],
+    [counts.brilliant,            'رائعة',         CLS_COLOR.brilliant],
+  ].filter(([n]) => n > 0 || true) // اعرض الكل حتى الأصفار
+  .map(([n,l,c]) => `<div class="sc-box">
     <div class="sc-n" style="color:${c}">${n}</div>
     <div class="sc-l">${l}</div></div>`).join('');
 }
@@ -1156,7 +1202,27 @@ function showTab(name) {
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id==='pane-'+name));
   if (name === 'board' && S.fens.length) setTimeout(() => drawBoard(S.fens[S.board.idx]), 10);
   if (name === 'err') loadPatterns();
+  // دفع الحالة في التاريخ للـ back button
+  if (window.history?.pushState) {
+    history.pushState({ tab: name }, '', '');
+  }
 }
+
+// التعامل مع زر الرجوع
+window.addEventListener('popstate', (e) => {
+  const tab = e.state?.tab;
+  if (tab) {
+    // رجوع داخلي بين التبويبات
+    const names = ['setup','an','board','err'];
+    document.querySelectorAll('.tab').forEach((b,i) => b.classList.toggle('on', names[i]===tab));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id==='pane-'+tab));
+    if (tab === 'board' && S.fens.length) setTimeout(() => drawBoard(S.fens[S.board.idx]), 10);
+    if (tab === 'err') loadPatterns();
+  } else {
+    // لا يوجد تاريخ داخلي — الرجوع للصفحة الرئيسية
+    window.location.href = 'index.html';
+  }
+});
 function enableTabs() {
   document.getElementById('tb-an').disabled    = false;
   document.getElementById('tb-board').disabled = false;

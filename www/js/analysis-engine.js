@@ -66,31 +66,47 @@ class AnalysisEngine {
     return new Promise((resolve, reject) => {
       let settled = false;
       let worker;
+      let timer = null;
       try { worker = new Worker(this.stockfishPath); }
       catch (e) { reject(e); return; }
 
       const slot = { worker, busy: false, pendingResolve: null, pendingInfo: null };
 
-      worker.onerror = (e) => {
+      const fail = (e) => {
         if (settled) return;
         settled = true;
+        clearTimeout(timer);
         try { worker.terminate(); } catch (_) {}
-        reject(new Error(this.stockfishPath + ' — ' + (e.message || 'worker error')));
+        reject(e instanceof Error ? e : new Error(this.stockfishPath + ' — worker error'));
       };
 
-      // الـ handler المؤقت حتى يتحمل الـ worker
-      worker.onmessage = () => {};
-      worker.postMessage('uci');
-      worker.postMessage('setoption name UCI_ShowWDL value true');
-      worker.postMessage('isready');
+      worker.onerror = (e) => fail(new Error(this.stockfishPath + ' — ' + (e.message || 'worker error')));
 
-      // 800ms كافية لـ stockfish-18-single.js للتحميل حتى على الأجهزة البطيئة
-      setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        this._attachHandler(slot);
-        resolve(slot);
-      }, 800);
+      // لا نعتبر المحرك جاهزًا بعد مهلة ثابتة. ننتظر readyok من UCI.
+      // هذا يمنع بدء التحليل قبل اكتمال تحميل NNUE/المحرك على الأجهزة البطيئة.
+      worker.onmessage = (e) => {
+        const line = typeof e.data === 'string' ? e.data.trim() : '';
+        if (line === 'readyok' && !settled) {
+          settled = true;
+          clearTimeout(timer);
+          this._attachHandler(slot);
+          resolve(slot);
+        }
+      };
+
+      try {
+        worker.postMessage('uci');
+        worker.postMessage('setoption name UCI_ShowWDL value true');
+        worker.postMessage('isready');
+      } catch (e) {
+        fail(e);
+        return;
+      }
+
+      // مهلة أمان سخية؛ لا نترك التطبيق ينتظر إلى الأبد.
+      timer = setTimeout(() => {
+        fail(new Error(this.stockfishPath + ' — timeout waiting for readyok'));
+      }, 15000);
     });
   }
 
@@ -260,10 +276,18 @@ class AnalysisEngine {
 
   static resultToMoverWinPct(result) {
     if (!result) return 50;
-    if (result.wdl) return AnalysisEngine.wdlToWinPct(result.wdl);
+
+    // WDL في Stockfish مفيد للعرض، لكنه ذو دقة منخفضة (per-mille) ويمكن
+    // أن يتشبع عند 0/100 فيحوّل فروقًا حقيقية بين النقلات إلى خسارة = 0.
+    // لذلك Accuracy/تصنيف النقلات يعتمدان على cp، مع WDL كاحتياط فقط.
     if (result.mate !== null && result.mate !== undefined)
       return result.mate > 0 ? 99.5 : 0.5;
-    return AnalysisEngine.cpToWinPct(result.cp || 0);
+
+    if (typeof result.cp === 'number' && Number.isFinite(result.cp))
+      return AnalysisEngine.cpToWinPct(result.cp);
+
+    if (result.wdl) return AnalysisEngine.wdlToWinPct(result.wdl);
+    return 50;
   }
 
   static resultToWhiteWinPct(result, fen) {
@@ -309,7 +333,12 @@ class AnalysisEngine {
      * يعكس إيجاد بديل إبداعي بنفس الجودة تقريباً.
      * الشرط: loss ≤ 2% وليس أفضل نقلة
      */
-    const isGreat = !isBest && loss <= 2 && !!(playedUci);
+    // "مدهشة" يجب أن تكون نادرة: لا نعطيها لمجرد أن أي بديل خسر أقل من
+    // 2%. نشترط فقدانًا شبه معدومًا مع علامة شطرنجية ملموسة (تكتيك/أخذ/
+    // كش/تضحية). أفضل نقلة نفسها تبقى في فئة Best.
+    const isTactical = !!(verboseMv?.captured || verboseMv?.flags?.includes?.('c') ||
+                          verboseMv?.san?.includes?.('+') || verboseMv?.san?.includes?.('#'));
+    const isGreat = !isBest && loss <= 0.75 && isTactical && !!playedUci;
 
     // Missed Opportunity
     const missedOpportunity = pBefore > 65 && loss > 10 && !isBest;

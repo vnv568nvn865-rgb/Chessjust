@@ -89,6 +89,22 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .btn-sm{padding:6px 10px;font-size:12px;}
 .btn-out{background:transparent;border:1px solid var(--gold);color:var(--gold);}
 
+/* Larger, easier-to-press move navigation controls */
+.board-nav-btn{
+  min-width:52px;
+  width:52px;
+  height:46px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:21px;
+  line-height:1;
+  border-radius:8px;
+  touch-action:manipulation;
+}
+.board-nav-btn:active{transform:scale(.97);}
+
 /* ── GAMES ── */
 .game-row{display:flex;justify-content:space-between;align-items:center;gap:8px;
   padding:8px 10px;border-radius:6px;border:1px solid var(--line);
@@ -339,10 +355,10 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 
     <!-- أزرار التحكم أسفل الرقعة -->
     <div class="board-ctrl" style="margin-top:10px">
-      <button class="btn btn-sm btn-out" onclick="bNav(-999)">⏮</button>
-      <button class="btn btn-sm btn-out" onclick="bNav(-1)">◀</button>
-      <button class="btn btn-sm btn-out" onclick="bNav(1)">▶</button>
-      <button class="btn btn-sm btn-out" onclick="bNav(999)">⏭</button>
+      <button class="btn btn-sm btn-out board-nav-btn" onclick="bNav(-999)" aria-label="أول نقلة">⏮</button>
+      <button class="btn btn-sm btn-out board-nav-btn" onclick="bNav(-1)" aria-label="النقلة السابقة">◀</button>
+      <button class="btn btn-sm btn-out board-nav-btn" onclick="bNav(1)" aria-label="النقلة التالية">▶</button>
+      <button class="btn btn-sm btn-out board-nav-btn" onclick="bNav(999)" aria-label="آخر نقلة">⏭</button>
     </div>
     <div class="board-ctrl">
       <button class="btn btn-sm" onclick="bShowBest()">💡 أفضل نقلة</button>

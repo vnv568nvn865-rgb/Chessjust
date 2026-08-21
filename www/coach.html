@@ -761,7 +761,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   const queryIndices = [];
   for(let i=0;i<S.fens.length;i++){
     const t = terminalWhiteCp(S.fens[i]);
-    if(t !== null) S.engineResults[i] = {cp: t, mate:null, bestmove:null, depth:0, nodes:0, time:0, terminal:true};
+    if(t !== null) S.engineResults[i] = {cp:null, whiteCp:t, mate:null, bestmove:null, depth:0, nodes:0, time:0, terminal:true, valid:true};
     else queryIndices.push(i);
   }
   completed = S.fens.length - queryIndices.length;
@@ -775,7 +775,12 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
     document.getElementById('prog-txt').textContent = `${completed}/${S.fens.length}`;
     document.getElementById('sb-pos').textContent = `${completed}/${S.fens.length}`;
     document.getElementById('sb-depth').textContent = result?.depth || '—';
-    document.getElementById('sb-nps').textContent = AnalysisEngine.formatNPS(result?.nodes, elapsed/Math.max(1,completed));
+    document.getElementById('sb-nps').textContent = AnalysisEngine.formatNPS(result?.nodes, Math.max(200, result?.time || elapsed));
+    document.getElementById('sb-eta').textContent = AnalysisEngine.formatETA(completed,S.fens.length,elapsed);
+  }, (localIdx, info) => {
+    const elapsed = Date.now() - startTime;
+    document.getElementById('sb-depth').textContent = info?.depth || '—';
+    document.getElementById('sb-nps').textContent = AnalysisEngine.formatNPS(info?.nodes, info?.time || elapsed);
     document.getElementById('sb-eta').textContent = AnalysisEngine.formatETA(completed,S.fens.length,elapsed);
   });
 
@@ -791,12 +796,17 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
     const mover = i % 2 === 0 ? 'w' : 'b';
     const mv    = verbose[i];
     const playedUci = mv ? (mv.from + mv.to + (mv.promotion || '')) : null;
-    const cls = AnalysisEngine.classifyMove(
-      S.engineResults[i], S.engineResults[i + 1],
-      mover, playedUci,
-      S.engineResults[i]?.bestmove || null,
-      mv
-    );
+    const cls = AnalysisEngine.classifyMove({
+      beforeResult: S.engineResults[i],
+      afterResult: S.engineResults[i + 1],
+      mover,
+      playedUci,
+      bestUci: S.engineResults[i]?.bestmove || null,
+      verboseMove: mv,
+      nextVerboseMove: verbose[i + 1] || null,
+      fenBefore: S.fens[i],
+      fenAfter: S.fens[i + 1]
+    });
     cls.idx        = i;
     cls.san        = sans[i];
     cls.moveNumber = Math.floor(i / 2) + 1;
@@ -804,8 +814,8 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
     cls.bestmove   = S.engineResults[i]?.bestmove || null;
     cls.evalBefore = AnalysisEngine.evalLabel(S.engineResults[i],    S.fens[i]);
     cls.evalAfter  = AnalysisEngine.evalLabel(S.engineResults[i+1],  S.fens[i+1]);
-    cls.cpBefore  = AnalysisEngine.resultToMoverCp(S.engineResults[i]);
-    cls.cpAfter   = AnalysisEngine.resultToMoverCp(S.engineResults[i+1]) !== null ? -AnalysisEngine.resultToMoverCp(S.engineResults[i+1]) : null;
+    cls.cpBefore  = AnalysisEngine.resultToWhiteCp(S.engineResults[i], S.fens[i]);
+    cls.cpAfter   = AnalysisEngine.resultToWhiteCp(S.engineResults[i+1], S.fens[i+1]);
     S.moveCls.push(cls);
   }
 
@@ -814,7 +824,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
 
   // ─ دقة المباراة (نقلات اللاعب فقط) ─
   const playerMover = playerIsWhite ? 'w' : 'b';
-  const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, S.whiteCp, playerMover);
+  const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, playerMover);
   const playerMoveCount = S.moveCls.filter(c =>
     c.mover === playerMover || (!c.mover && c.isPlayer)
   ).length;

@@ -705,264 +705,136 @@
 
   let sfLoading = false;
   let sfFailed = false;
-  const POOL_SIZE = 2; // 3 concurrent full-strength NNUE engines was overheating phones and causing thermal throttling — 2 is a safer sustained load
-  const STOCKFISH_FULL_URL = './vendor/stockfish-18-single.js';       // strongest, tried first
-  const STOCKFISH_LITE_URL = './vendor/stockfish-18-lite-single.js';  // lighter NNUE fallback
-  const STOCKFISH_FALLBACK_URL = './vendor/stockfish.js';             // classical engine, last resort
-  let enginePool = []; // [{worker, busy, pendingInfo, pendingResolve}, ...]
+  let sharedAnalysisEngine = null;
+  let enginePool = [];
   let poolEngineUrlUsed = null;
-
-  function tryLoadEngine(url){
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      try{
-        const w = new Worker(url);
-        w.onerror = (e) => {
-          if(settled) return;
-          settled = true;
-          try{ w.terminate(); } catch(e2){}
-          reject(e);
-        };
-        // if the worker script loads/parses without error within this window,
-        // treat it as usable — real errors (404, parse failure) surface almost
-        // immediately via onerror.
-        setTimeout(() => {
-          if(settled) return;
-          settled = true;
-          resolve(w);
-        }, 400);
-      } catch(e){
-        if(!settled){ settled = true; reject(e); }
-      }
-    });
-  }
-
-  function attachPoolSlotHandler(slot){
-    slot.worker.onmessage=(e)=>{
-      const line=typeof e.data==='string'?e.data:''; if(!line)return;
-      const cpMatch=line.match(/score cp (-?\d+)/), mateMatch=line.match(/score mate (-?\d+)/);
-      const dep=line.match(/depth (\d+)/), nod=line.match(/nodes (\d+)/), tim=line.match(/time (\d+)/);
-      if(cpMatch||mateMatch||dep||nod||tim){
-        const p=slot.pendingInfo||{};
-        slot.pendingInfo={cp:cpMatch?parseInt(cpMatch[1],10):(p.cp??null),mate:mateMatch?parseInt(mateMatch[1],10):(p.mate??null),depth:dep?parseInt(dep[1],10):(p.depth||0),nodes:nod?parseInt(nod[1],10):(p.nodes||0),time:tim?parseInt(tim[1],10):(p.time||0)};
-      }
-      if(line.startsWith('bestmove')){const parts=line.split(/\s+/),bm=parts[1];const result={...(slot.pendingInfo||{}),bestmove:(bm&&bm!=='(none)')?bm:null};slot.pendingInfo=null;if(slot.pendingResolve){const r=slot.pendingResolve;slot.pendingResolve=null;r(result);}}
-    };
-    slot.worker.onerror=()=>{if(slot.pendingResolve){const r=slot.pendingResolve;slot.pendingResolve=null;r({cp:null,mate:null,bestmove:null,depth:0,nodes:0,time:0});}};
-  }
-
-  async function loadOneEngineWorker(){
-    const urls=[STOCKFISH_FULL_URL,STOCKFISH_LITE_URL,STOCKFISH_FALLBACK_URL]; let lastErr=null;
-    for(const url of urls){
-      try{
-        const w=new Worker(url);
-        await new Promise((resolve,reject)=>{
-          let uciok=false,readyok=false,done=false;
-          const t=setTimeout(()=>{if(!done){done=true;try{w.terminate();}catch(e){}reject(new Error('ready timeout'));}},12000);
-          w.onerror=e=>{if(!done){done=true;clearTimeout(t);try{w.terminate();}catch(x){}reject(e);}};
-          w.onmessage=e=>{const line=typeof e.data==='string'?e.data:'';if(line==='uciok')uciok=true;if(line==='readyok')readyok=true;if(uciok&&readyok&&!done){done=true;clearTimeout(t);resolve();}};
-          w.postMessage('uci'); w.postMessage('isready');
-        });
-        poolEngineUrlUsed=url; return w;
-      }catch(e){lastErr=e;}
-    }
-    throw lastErr||new Error('all_engines_failed');
-  }
+  const STOCKFISH_PATHS = [
+    './vendor/stockfish-18-single.js',
+    './vendor/stockfish-18-lite-single.js',
+    './vendor/stockfish.js'
+  ];
 
   async function initStockfish(){
-    if(sfLoading||enginePool.length>0)return; sfLoading=true; setEvalReadout('جاري تشغيل محرك التحليل...','—');
+    if(sfLoading || (sharedAnalysisEngine && sharedAnalysisEngine.ready)) return;
+    sfLoading = true;
+    sfFailed = false;
+    setEvalReadout('جاري تشغيل محرك التحليل...','—');
+    let lastError = null;
+    try {
+      for(const path of STOCKFISH_PATHS){
+        try {
+          const candidate = new AnalysisEngine({stockfishPath:path,poolSize:2});
+          await candidate.initialize();
+          sharedAnalysisEngine = candidate;
+          sharedAnalysisEngine.setLevel('MEDIUM');
+          enginePool = sharedAnalysisEngine.pool;
+          poolEngineUrlUsed = path;
+          sfReady = true;
+          sfFailed = false;
+          if(positions && positions.length) requestAnalysis(true);
+          return;
+        } catch(e) {
+          lastError = e;
+        }
+      }
+      throw lastError || new Error('all_engines_failed');
+    } catch(e){
+      console.error('stockfish init failed',e);
+      sfReady = false;
+      sfFailed = true;
+      enginePool = [];
+      sharedAnalysisEngine = null;
+      setEvalReadoutWithRetry('تعذّر تشغيل محرك التحليل فعليًا');
+    } finally {
+      sfLoading = false;
+    }
+  }
+
+  function queryEngine(fen,nodes,onInfo){
+    if(!sharedAnalysisEngine || !sharedAnalysisEngine.ready) return Promise.resolve({cp:null,mate:null,bestmove:null,valid:false});
+    return sharedAnalysisEngine.queryPosition(fen,nodes,onInfo);
+  }
+
+  async function runPoolBulk(fens,nodes,timeoutMs,onEach,onProgress){
+    if(!sharedAnalysisEngine || !sharedAnalysisEngine.ready){
+      await initStockfish();
+    }
+    if(!sharedAnalysisEngine || !sharedAnalysisEngine.ready){
+      for(let i=0;i<fens.length;i++) if(onEach) onEach(i,{cp:null,mate:null,bestmove:null,valid:false});
+      return [];
+    }
+    return sharedAnalysisEngine.analyzeBulk(fens,nodes,onEach,onProgress);
+  }
+
+  function uciToSan(fen, uci){
     try{
-      for(let i=0;i<POOL_SIZE;i++){
-        const w=await loadOneEngineWorker(); const slot={worker:w,busy:false,pendingInfo:null,pendingResolve:null}; attachPoolSlotHandler(slot); enginePool.push(slot);
-      }
-      sfReady=true;sfFailed=false;if(positions&&positions.length)requestAnalysis(true);
-    }catch(e){console.error('stockfish pool init failed',e);sfReady=false;sfFailed=true;enginePool=[];setEvalReadoutWithRetry('تعذّر تشغيل محرك التحليل');}
-    finally{sfLoading=false;}
+      const c = new Chess(fen);
+      const from = uci.slice(0,2), to = uci.slice(2,4);
+      const promotion = uci.length > 4 ? uci[4] : undefined;
+      const mv = c.move({from,to,promotion});
+      return mv ? mv.san : null;
+    }catch(e){ return null; }
   }
 
-  function queryOnSlot(slot, fen, nodes, timeoutMs){
-    nodes = nodes || 800000;
-    // wall-clock safety net only — node-based search duration varies with
-    // real CPU contention, so give it generous headroom before we force a stop.
-    timeoutMs = timeoutMs || 20000;
-    return new Promise((resolve) => {
-      let settled = false;
-      let timer = null;
-      slot.pendingResolve = (result) => {
-        if(settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(result);
-      };
-      timer = setTimeout(() => {
-        if(settled) return;
-        try{ slot.worker.postMessage('stop'); } catch(e){}
-        setTimeout(() => { if(!settled){ settled = true; resolve({cp:null, mate:null, bestmove:null}); } }, 1500);
-      }, timeoutMs);
-      try{
-        // clear the engine's transposition table before every query so the
-        // result never depends on what this worker happened to analyze
-        // before — that leftover-hash effect was the real remaining source
-        // of non-determinism between runs.
-        slot.worker.postMessage('ucinewgame');
-        slot.worker.postMessage('position fen ' + fen);
-        slot.worker.postMessage('go nodes ' + nodes);
-      } catch(e){
-        settled = true;
-        clearTimeout(timer);
-        resolve({cp:null, mate:null, bestmove:null});
-      }
-    });
-  }
-
-  // single-position query (used by the live interactive analysis) — grabs
-  // whichever pool worker is free, waiting briefly if all are busy with a
-  // batch job.
-  async function queryEngine(fen, nodes, timeoutMs){
-    if(enginePool.length === 0 && !sfFailed){ await initStockfish(); }
-    if(enginePool.length === 0) return {cp:null, mate:null, bestmove:null};
-    let slot = enginePool.find(s => !s.busy);
-    if(!slot){
-      slot = await new Promise(resolve => {
-        const iv = setInterval(() => {
-          const free = enginePool.find(s => !s.busy);
-          if(free){ clearInterval(iv); resolve(free); }
-        }, 50);
-      });
-    }
-    slot.busy = true;
-    const r = await queryOnSlot(slot, fen, nodes, timeoutMs);
-    slot.busy = false;
-    return r;
-    }
-
-  // parallel bulk executor: runs `fens` across all pool workers concurrently
-  // (pull-based queue — whichever worker frees up first grabs the next
-  // position), calling onEach(index, result) as each one completes.
-  async function runPoolBulk(fens, nodes, timeoutMs, onEach){
-    if(enginePool.length === 0 && !sfFailed){ await initStockfish(); }
-    if(enginePool.length === 0){
-      for(let i = 0; i < fens.length; i++) onEach(i, {cp:null, mate:null, bestmove:null});
-      return;
-    }
-    let next = 0;
-    async function worker(slot){
-      while(next < fens.length){
-        const idx = next++;
-        slot.busy = true;
-        const r = await queryOnSlot(slot, fens[idx], nodes, timeoutMs);
-        slot.busy = false;
-        onEach(idx, r);
-      }
-    }
-    await Promise.all(enginePool.map(slot => worker(slot)));
-  }
-
-  function renderEvalResult(fen, result){
-    const sideToMove = (new Chess(fen)).turn();
-    let label;
-    if(result.mate !== null && result.mate !== undefined){
-      let mateIn = result.mate;
-      if(sideToMove === 'b') mateIn = -mateIn;
-      label = 'كش ملك خلال ' + Math.abs(mateIn) + ' نقلة';
-    } else {
-      let cp = result.cp || 0;
-      if(sideToMove === 'b') cp = -cp;
-      label = (cp > 0 ? '+' : '') + (cp/100).toFixed(2);
-    }
-    label += ' [CP]';
-    const whitePct = resultToWhitePercent(result, fen);
-    const fraction = whitePct === null ? 0.5 : whitePct / 100;
+  function renderEvalResult(fen,result){
+    const label = AnalysisEngine.evalLabel(result,fen);
+    const whiteCp = AnalysisEngine.resultToWhiteCp(result,fen);
+    const fraction = whiteCp===null ? 0.5 : (AnalysisEngine.cpToWinPct(whiteCp)/100);
     let bestSan = '—';
-    if(result.bestmove) bestSan = uciToSan(fen, result.bestmove) || result.bestmove;
-
-    let qualityHtml = '';
-    const q = currentPly > 0 ? moveClass[currentPly - 1] : null;
-    if(q){
-      qualityHtml = `<span class="mv-icon ${q.cls}">${MOVE_CLASS_ICON[q.cls]||''} ${escapeHtml(q.label)}</span>`;
-    }
-    setEvalReadout(label, bestSan, fraction, qualityHtml);
+    if(result?.bestmove) bestSan = uciToSan(fen,result.bestmove) || result.bestmove;
+    let qualityHtml='';
+    const q=currentPly>0 ? moveClass[currentPly-1] : null;
+    if(q) qualityHtml=`<span class="mv-icon ${q.cls}">${MOVE_CLASS_ICON[q.cls]||''} ${escapeHtml(q.label)}</span>`;
+    setEvalReadout(label,bestSan,fraction,qualityHtml);
   }
 
   let analysisTimer = null;
   function requestAnalysis(immediate){
-    if(enginePool.length === 0 && !sfFailed){ initStockfish(); }
-    if(enginePool.length === 0 && sfFailed) return;
-    if(fullGameAnalysisRunning) return; // don't fight the batch/full-game queue for UI updates
+    if(!sharedAnalysisEngine && !sfFailed) { initStockfish(); }
+    if(!sharedAnalysisEngine && sfFailed) return;
+    if(fullGameAnalysisRunning) return;
     clearTimeout(analysisTimer);
     analysisSeq++;
-    const mySeq = analysisSeq;
-    const fen = positions[currentPly];
-    analysisTimer = setTimeout(async () => {
-      if(mySeq !== analysisSeq) return;
-      setEvalReadout('جاري التحليل...', '—');
+    const mySeq=analysisSeq;
+    const fen=positions[currentPly];
+    analysisTimer=setTimeout(async()=>{
+      if(mySeq!==analysisSeq) return;
+      setEvalReadout('جاري التحليل...','—');
       try{
-        const result = await queryEngine(fen, 600000);
-        if(mySeq !== analysisSeq) return;
-        renderEvalResult(fen, result);
-      } catch(e){
-        if(mySeq !== analysisSeq) return;
-        setEvalReadoutWithRetry('تعذّر تشغيل التحليل');
+        const result=await queryEngine(fen,600000,info=>{
+          if(mySeq!==analysisSeq) return;
+          const depth=info?.depth||0;
+          const nps=AnalysisEngine.formatNPS(info?.nodes,info?.time||0);
+          setEvalReadout(`جاري التحليل · عمق ${depth} · ${nps}`,'—');
+        });
+        if(mySeq!==analysisSeq) return;
+        if(!result || (result.cp==null && result.mate==null)) throw new Error('no_engine_result');
+        renderEvalResult(fen,result);
+      }catch(e){
+        if(mySeq!==analysisSeq) return;
+        setEvalReadoutWithRetry('تعذّر الحصول على نتيجة المحرك');
       }
-    }, immediate ? 0 : 200);
+    },immediate?0:200);
   }
 
   /* ---------- CP-based move classification / accuracy ---------- */
-  const PIECE_VALUE = {p:1,n:3,b:3,r:5,q:9,k:0};
-  const CP_COLORS = {brilliant:'#37c6e0',best:'#5f9e6e',great:'#7fb87a',excellent:'#9fc98a',good:'#b5d4a0',inaccuracy:'#d9b64e',mistake:'#d98a3f',blunder:'#c95a4a',unrated:'#8c8175'};
+  const CP_COLORS = AnalysisEngine.colors();
 
-  function cpToWinPercent(cp){
-    if(typeof cp !== 'number' || !Number.isFinite(cp)) return null;
-    const capped=Math.max(-1000,Math.min(1000,cp));
-    return 50 + 50 * (2/(1+Math.exp(-0.00368208*capped))-1);
-  }
-  function resultToWhiteCp(result, fen){
-    if(!result) return null;
-    let cp=null;
-    if(result.mate !== null && result.mate !== undefined){
-      const d=Math.abs(result.mate);
-      cp=result.mate>0 ? Math.max(1000,10000-d*50) : -Math.max(1000,10000-d*50);
-    } else if(typeof result.cp==='number' && Number.isFinite(result.cp)) cp=Math.max(-10000,Math.min(10000,result.cp));
-    if(cp===null) return null;
-    const turn=(fen||'').split(/\s+/)[1] || 'w';
-    return turn==='b' ? -cp : cp;
-  }
-  function resultToWhitePercent(result, fen){
+  function resultToWhiteCp(result,fen){ return AnalysisEngine.resultToWhiteCp(result,fen); }
+  function resultToWhitePercent(result,fen){
     const cp=resultToWhiteCp(result,fen);
-    return cp===null ? null : cpToWinPercent(cp);
+    return cp===null?null:AnalysisEngine.cpToWinPct(cp);
   }
   function moveAccuracyFromCpLoss(cpLoss,beforeWhiteCp,afterWhiteCp){
-    if(typeof cpLoss!=='number') return null;
-    const b=typeof beforeWhiteCp==='number'?Math.max(-1000,Math.min(1000,beforeWhiteCp)):0;
-    const a=typeof afterWhiteCp==='number'?Math.max(-1000,Math.min(1000,afterWhiteCp)):b;
-    const wb=cpToWinPercent(b), wa=cpToWinPercent(a);
-    const impact=Math.max(0,(wb??50)-(wa??50));
-    return Math.max(0,Math.min(100,103.1668*Math.exp(-0.04354*impact)-3.1669));
+    return AnalysisEngine.moveAccuracy(cpLoss,beforeWhiteCp,afterWhiteCp);
   }
-  function classifyOneMove(beforeResult,afterResult,mover,playedUci,bestUciAtBefore,verboseMv,fenBefore,fenAfter){
-    const beforeWhiteCp=resultToWhiteCp(beforeResult,fenBefore);
-    const afterWhiteCp=resultToWhiteCp(afterResult,fenAfter);
-    if(beforeWhiteCp===null || afterWhiteCp===null || !playedUci){
-      return {cls:'unrated',label:'غير متاحة',symbol:'—',loss:null,cpLoss:null,moveAcc:null,mover};
-    }
-    const cpLoss=Math.max(0,mover==='w'?beforeWhiteCp-afterWhiteCp:afterWhiteCp-beforeWhiteCp);
-    const isBest=!!(bestUciAtBefore && bestUciAtBefore!=='(none)' && playedUci===bestUciAtBefore);
-    const sacrifice=!!(verboseMv?.captured && PIECE_VALUE[verboseMv.piece] < PIECE_VALUE[verboseMv.captured]);
-    const brilliant=isBest && sacrifice && cpLoss<=15 && beforeWhiteCp>-500 && beforeWhiteCp<900;
-    const great=!isBest && cpLoss>0 && cpLoss<=8 && Math.abs(beforeWhiteCp)<=500;
-    let cls,label,symbol;
-    if(brilliant){cls='brilliant';label='رائعة';symbol='‼';}
-    else if(isBest){cls='best';label='أفضل نقلة';symbol='★';}
-    else if(great){cls='great';label='مدهشة';symbol='!';}
-    else if(cpLoss<=25){cls='excellent';label='ممتازة';symbol='';}
-    else if(cpLoss<=50){cls='good';label='جيدة';symbol='';}
-    else if(cpLoss<=100){cls='inaccuracy';label='غير دقيقة';symbol='?!';}
-    else if(cpLoss<=200){cls='mistake';label='خطأ';symbol='?';}
-    else {cls='blunder';label='خطأ فادح';symbol='??';}
-    const missedOpportunity=beforeWhiteCp>=150 && cpLoss>=80 && !isBest;
-    if(missedOpportunity && (cls==='mistake'||cls==='inaccuracy')){label='تضييع فرصة';symbol='⚡';}
-    return {cls,label,symbol,loss:cpLoss,cpLoss,moveAcc:moveAccuracyFromCpLoss(cpLoss,beforeWhiteCp,afterWhiteCp),mover,missedOpportunity,color:CP_COLORS[cls]||'#9fc98a'};
+  function classifyOneMove(beforeResult,afterResult,mover,playedUci,bestUciAtBefore,verboseMv,fenBefore,fenAfter,nextVerboseMv){
+    return AnalysisEngine.classifyMove({
+      beforeResult,afterResult,mover,playedUci,bestUci:bestUciAtBefore,
+      verboseMove:verboseMv,nextVerboseMove:nextVerboseMv,fenBefore,fenAfter
+    });
   }
+
   function playedUciFor(verboseMv){ return verboseMv ? verboseMv.from+verboseMv.to+(verboseMv.promotion||'') : null; }
   function localVolatility(evals,plyIndex,radius){
     const vals=evals.slice(Math.max(0,plyIndex-radius),Math.min(evals.length-1,plyIndex+radius)+1).filter(v=>typeof v==='number');
@@ -1012,13 +884,12 @@
     let whiteTotal=0,whiteWeight=0,blackTotal=0,blackWeight=0; moveClass=[];
     for(let i=0;i<verboseMoves.length;i++){
       const mover=i%2===0?'w':'b', playedUci=playedUciFor(verboseMoves[i]);
-      const beforeR={cp: mover==='w'?evalCp[i]:-evalCp[i],mate:null}, afterR={cp: ((mover==='w'?-1:1)*evalCp[i+1]),mate:null};
-      // Use actual engine results for classification so mate handling is preserved.
-      const c=classifyOneMove({cp: mover==='w'?evalCp[i]:-evalCp[i],mate:null},{cp:mover==='w'?-evalCp[i+1]:evalCp[i+1],mate:null},mover,playedUci,bestUcis[i],verboseMoves[i],positions[i],positions[i+1]);
+      const beforeR={cp: null, whiteCp: evalCp[i], mate:null, valid:true};
+      const afterR={cp: null, whiteCp: evalCp[i+1], mate:null, valid:true};
+      const c=classifyOneMove(beforeR,afterR,mover,playedUci,bestUcis[i],verboseMoves[i],positions[i],positions[i+1],verboseMoves[i+1]);
       moveClass[i]=c;
       if(typeof c.moveAcc==='number'){
-        const w=localVolatility(evalCp,i,2);
-        if(mover==='w'){whiteTotal+=c.moveAcc*w;whiteWeight+=w;}else{blackTotal+=c.moveAcc*w;blackWeight+=w;}
+        if(mover==='w'){whiteTotal+=c.moveAcc;whiteWeight++;}else{blackTotal+=c.moveAcc;blackWeight++;}
       }
     }
     if(progressWrap)progressWrap.style.display='none'; if(btn)btn.disabled=false; fullGameAnalysisRunning=false;
@@ -1107,8 +978,8 @@
         const mover = i % 2 === 0 ? 'w' : 'b';
         if(mover !== g.myColorCode) continue;
         const playedUci = playedUciFor(gameVerbose[i]);
-        const c = classifyOneMove({cp: mover==='w'?evals[i]:-evals[i], mate:null}, {cp: mover==='w'?-evals[i+1]:evals[i+1], mate:null}, mover, playedUci, bestUcis[i], gameVerbose[i], gamePositions[i], gamePositions[i+1]);
-        if(typeof c.moveAcc === 'number'){ const w = localVolatility(evals, i, 2); myTotal += c.moveAcc * w; myWeight += w; }
+        const c = classifyOneMove({cp:null,whiteCp:evals[i],mate:null,valid:true}, {cp:null,whiteCp:evals[i+1],mate:null,valid:true}, mover, playedUci, bestUcis[i], gameVerbose[i], gamePositions[i], gamePositions[i+1], gameVerbose[i+1]);
+        if(typeof c.moveAcc === 'number'){ myTotal += c.moveAcc; myWeight++; }
       }
       rows.push({opponent: g.opponent, resultLabel: g.resultLabel, resultCls: g.resultCls, accuracy: myWeight ? myTotal/myWeight : null});
       renderBatchResults(rows);

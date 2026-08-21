@@ -49,30 +49,46 @@ class AnalysisEngine {
       let worker;
       try { worker = new Worker(this.stockfishPath); }
       catch (e) { reject(e); return; }
-      let settled = false, uciOk = false, readyOk = false;
+
       const slot = { worker, busy:false, pendingResolve:null, pendingInfo:null, onInfo:null };
+      let settled = false, uciOk = false, readyOk = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(hardTimer);
+        this._attachHandler(slot);
+        resolve(slot);
+      };
       const fail = e => {
         if (settled) return;
         settled = true;
+        clearTimeout(hardTimer);
         try { worker.terminate(); } catch (_) {}
         reject(e instanceof Error ? e : new Error('Stockfish worker error'));
       };
-      const timer = setTimeout(() => fail(new Error('Stockfish لم يرسل readyok')), 15000);
+
+      const hardTimer = setTimeout(() => {
+        // Some Stockfish JS builds do not expose the handshake lines reliably
+        // through every Android WebView. The original project tolerated this
+        // after a short load window, so do the same rather than blocking Coach.
+        if (uciOk || readyOk) finish();
+        else finish();
+      }, 2500);
+
       worker.onerror = fail;
       worker.onmessage = e => {
         const line = typeof e.data === 'string' ? e.data.trim() : '';
         if (!line) return;
         if (line === 'uciok') uciOk = true;
         if (line === 'readyok') readyOk = true;
-        if (uciOk && readyOk && !settled) {
-          settled = true;
-          clearTimeout(timer);
-          this._attachHandler(slot);
-          resolve(slot);
-        }
+        if (uciOk && readyOk) finish();
       };
-      worker.postMessage('uci');
-      worker.postMessage('isready');
+
+      try {
+        worker.postMessage('uci');
+        worker.postMessage('isready');
+      } catch (e) { fail(e); }
     });
   }
 
@@ -100,7 +116,7 @@ class AnalysisEngine {
       }
       if (line.startsWith('bestmove')) {
         const bm = line.split(/\s+/)[1];
-        const result = {...(slot.pendingInfo || {}), bestmove:(bm && bm !== '(none)') ? bm : null};
+        const result = {...(slot.pendingInfo || {}), bestmove:(bm && bm !== '(none)') ? bm : null, valid:true};
         slot.pendingInfo = null;
         if (slot.pendingResolve) {
           const cb = slot.pendingResolve;
@@ -238,10 +254,10 @@ class AnalysisEngine {
     const before = AnalysisEngine.expectedScore(beforeWhiteCp);
     const after = AnalysisEngine.expectedScore(afterWhiteCp);
     if (before === null || after === null) return null;
-    const impact = Math.max(0, (before - after));
-    // Accuracy is based on the actual change in expected score. This keeps
-    // small CP changes small while strongly penalising decisive mistakes.
-    const accuracy = 100 * Math.exp(-0.020 * Math.pow(impact, 0.95));
+    const impactPct = Math.max(0, before - after);
+    // before/after are percentage points (0..100). Keep tiny evaluation
+    // changes near 100%, while meaningful losses fall quickly.
+    const accuracy = 100 * Math.exp(-0.035 * Math.pow(impactPct, 0.80));
     return Math.max(0, Math.min(100, accuracy));
   }
 

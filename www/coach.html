@@ -420,7 +420,8 @@ const S = {
   verboseMoves:   [],   // نتائج chess.js.move() لكل نقلة
   sanMoves:       [],
   engineResults:  [],   // نتيجة Stockfish لكل FEN
-  whitePcts:      [],   // win% للأبيض لكل FEN
+  whitePcts:      [],   // win% مشتق من CP فقط (للعرض البياني)
+  whiteCp:        [],   // تقييم CP من منظور الأبيض
   moveCls:        [],   // تصنيف كل نقلة
   playerIsWhite:  true,
   board: { idx:0, flipped:false, bestSqs:null, selSq:null, tryMode:false }
@@ -691,8 +692,17 @@ function buildFens(sans) {
 
    قبل: 2N استعلام متتالي = 140 لـ70 نقلة
    بعد: N+1 استعلام متوازٍ = 71 لـ70 نقلة
-   النتيجة: تسريع 40× مع دقة أعلى (WDL)
+   النتيجة: تسريع 40× مع تقييم CP موحد
 ════════════════════════════════════════ */
+function terminalWhiteCp(fen){
+  try{
+    const c = new Chess(fen);
+    if(c.in_checkmate()) return c.turn()==='w' ? -10000 : 10000;
+    if(c.in_stalemate() || c.in_draw() || c.in_threefold_repetition() || c.insufficient_material()) return 0;
+  }catch(_){}
+  return null;
+}
+
 async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   if (!S.ready) { alert('انتظر جهوزية المحرك'); return; }
   S.coach = new ChessCoach();
@@ -705,6 +715,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   S.verboseMoves  = [];
   S.engineResults = [];
   S.whitePcts     = [];
+  S.whiteCp       = [];
   S.moveCls       = [];
   S.board         = { idx:0, flipped:S.board.flipped, bestSqs:null, selSq:null, tryMode:false };
 
@@ -747,38 +758,41 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   S.engineResults = new Array(S.fens.length).fill(null);
   let completed = 0;
   const startTime = Date.now();
-
-  await S.engine.analyzeBulk(S.fens, undefined, (idx, result) => {
+  const queryIndices = [];
+  for(let i=0;i<S.fens.length;i++){
+    const t = terminalWhiteCp(S.fens[i]);
+    if(t !== null) S.engineResults[i] = {cp: t, mate:null, bestmove:null, depth:0, nodes:0, time:0, terminal:true};
+    else queryIndices.push(i);
+  }
+  completed = S.fens.length - queryIndices.length;
+  if(completed) renderProgress('جاري تحليل المواضع', completed, S.fens.length, 'prog-fill', 'prog-txt');
+  await S.engine.analyzeBulk(queryIndices.map(i=>S.fens[i]), undefined, (localIdx, result) => {
+    const idx = queryIndices[localIdx];
     S.engineResults[idx] = result;
     completed++;
-
-    // تحديث شريط التقدم
-    const pct     = Math.round((completed / S.fens.length) * 100);
     const elapsed = Date.now() - startTime;
-    document.getElementById('prog-fill').style.width = pct + '%';
-    document.getElementById('prog-txt').textContent  = `${completed}/${S.fens.length}`;
-    document.getElementById('sb-pos').textContent    = `${completed}/${S.fens.length}`;
-    document.getElementById('sb-depth').textContent  = result?.depth || '—';
-    document.getElementById('sb-nps').textContent    =
-      AnalysisEngine.formatNPS(result?.nodes, elapsed / completed);
-    document.getElementById('sb-eta').textContent    =
-      AnalysisEngine.formatETA(completed, S.fens.length, elapsed);
+    document.getElementById('prog-fill').style.width = Math.round((completed/S.fens.length)*100)+'%';
+    document.getElementById('prog-txt').textContent = `${completed}/${S.fens.length}`;
+    document.getElementById('sb-pos').textContent = `${completed}/${S.fens.length}`;
+    document.getElementById('sb-depth').textContent = result?.depth || '—';
+    document.getElementById('sb-nps').textContent = AnalysisEngine.formatNPS(result?.nodes, elapsed/Math.max(1,completed));
+    document.getElementById('sb-eta').textContent = AnalysisEngine.formatETA(completed,S.fens.length,elapsed);
   });
 
   pw.style.display = 'none';
 
   // ─ تحويل إلى white win% ─
-  S.whitePcts = S.engineResults.map((r, i) =>
-    AnalysisEngine.resultToWhiteWinPct(r, S.fens[i]));
+  S.whiteCp = S.engineResults.map((r, i) => AnalysisEngine.resultToWhiteCp(r, S.fens[i]));
+  S.whitePcts = S.whiteCp.map(cp => cp === null ? null : AnalysisEngine.cpToWinPct(cp));
 
-  // ─ تصنيف النقلات ─
+  // ─ تصنيف النقلات: CP فقط، بدون الاحتمالات القديمة أو قيم fallback ─
   S.moveCls = [];
   for (let i = 0; i < sans.length; i++) {
     const mover = i % 2 === 0 ? 'w' : 'b';
     const mv    = verbose[i];
     const playedUci = mv ? (mv.from + mv.to + (mv.promotion || '')) : null;
     const cls = AnalysisEngine.classifyMove(
-      S.whitePcts[i], S.whitePcts[i + 1],
+      S.engineResults[i], S.engineResults[i + 1],
       mover, playedUci,
       S.engineResults[i]?.bestmove || null,
       mv
@@ -790,7 +804,8 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
     cls.bestmove   = S.engineResults[i]?.bestmove || null;
     cls.evalBefore = AnalysisEngine.evalLabel(S.engineResults[i],    S.fens[i]);
     cls.evalAfter  = AnalysisEngine.evalLabel(S.engineResults[i+1],  S.fens[i+1]);
-    cls.wdlUsed    = !!(S.engineResults[i]?.wdl);
+    cls.cpBefore  = AnalysisEngine.resultToMoverCp(S.engineResults[i]);
+    cls.cpAfter   = AnalysisEngine.resultToMoverCp(S.engineResults[i+1]) !== null ? -AnalysisEngine.resultToMoverCp(S.engineResults[i+1]) : null;
     S.moveCls.push(cls);
   }
 
@@ -799,7 +814,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
 
   // ─ دقة المباراة (نقلات اللاعب فقط) ─
   const playerMover = playerIsWhite ? 'w' : 'b';
-  const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, S.whitePcts, playerMover);
+  const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, S.whiteCp, playerMover);
   const playerMoveCount = S.moveCls.filter(c =>
     c.mover === playerMover || (!c.mover && c.isPlayer)
   ).length;
@@ -832,7 +847,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   if (S.tracker) {
     const errMoves = S.moveCls.filter(c => c.isPlayer).map(c => ({
       isPlayerMove: true,
-      cpLoss: c.loss * 3,
+      cpLoss: c.cpLoss ?? 0,
       classification: c,
       moveNumber: c.moveNumber,
       move: c.san,
@@ -885,7 +900,7 @@ function selectMove(i) {
 
 function showExplanation(i) {
   const c = S.moveCls[i]; if (!c) return;
-  const isBad   = c.loss >= 10;
+  const isBad   = typeof c.cpLoss === 'number' && c.cpLoss >= 50;
   const bmText  = c.bestmove ? S.coach?.formatMove(c.bestmove) : null;
 
   // شرح موسّع بناءً على الوضعية الفعلية
@@ -893,7 +908,7 @@ function showExplanation(i) {
   const posAfter  = S.coach?.parsePosition(S.fens[i+1]);
   const expl = (posBefore && posAfter && S.coach)
     ? S.coach.explainMoveDifference(posBefore, posAfter, null,
-        c.bestmove, c.loss * 3, { bestMove: c.bestmove, score: null })
+        c.bestmove, c.cpLoss ?? 0, { bestMove: c.bestmove, score: null })
     : { reasons:[], whyBad:[] };
 
   document.getElementById('expl-wrap').innerHTML = `
@@ -902,11 +917,11 @@ function showExplanation(i) {
         ${c.san}${c.symbol} · ${c.labelAr}
       </div>
       <div class="expl-sec">
-        <div class="expl-sec-t">تقييم Stockfish ${c.wdlUsed ? '[WDL✓]' : '[cp fallback]'}</div>
+        <div class="expl-sec-t">تقييم Stockfish [CP]</div>
         <div class="expl-txt">
           قبل: <strong>${c.evalBefore}</strong>
           → بعد: <strong>${c.evalAfter}</strong>
-          · خسارة: <strong>${c.loss.toFixed(1)}%</strong>
+          · خسارة: <strong>${typeof c.cpLoss === 'number' ? c.cpLoss + ' cp' : '—'}</strong>
         </div>
       </div>
       ${expl.reasons.length ? `<div class="expl-sec">
@@ -919,7 +934,7 @@ function showExplanation(i) {
       </div>` : ''}
       ${c.missedOpportunity ? `<div class="miss-box">
         <div class="miss-lbl">⚡ تضييع فرصة</div>
-        <div style="font-size:12px">كنت تملك ميزة حاسمة (${S.whitePcts[i]?.toFixed(0)}% فوز) لكن النقلة أضاعتها</div>
+        <div style="font-size:12px">كنت تملك ميزة حاسمة (${S.whitePcts[i] != null ? S.whitePcts[i].toFixed(0) : '—'}% تقدير) لكن النقلة أضاعتها</div>
       </div>` : ''}
       ${isBad && expl.whyBad?.length ? `<div class="bad-box">
         <div class="bad-lbl">❓ لماذا كانت سيئة</div>
@@ -958,7 +973,7 @@ function renderStats() {
 function renderKeyMoments() {
   const moments = S.moveCls
     .filter(c => c.isPlayer && (c.type === 'blunder' || c.type === 'mistake' || c.missedOpportunity))
-    .sort((a, b) => b.loss - a.loss)
+    .sort((a, b) => (b.cpLoss || 0) - (a.cpLoss || 0))
     .slice(0, 5);
   if (!moments.length) return;
   document.getElementById('moments-card').style.display = 'block';
@@ -967,7 +982,7 @@ function renderKeyMoments() {
       <div class="moment-n">نقلة ${c.moveNumber}</div>
       <div>
         <div class="moment-m" style="color:${c.color}">${c.san} ${c.symbol}</div>
-        <div class="moment-w">${c.labelAr} · فقدان ${c.loss.toFixed(1)}%</div>
+        <div class="moment-w">${c.labelAr} · فقدان ${typeof c.cpLoss === 'number' ? c.cpLoss + ' cp' : '—'}</div>
       </div>
     </div>`).join('');
 }
@@ -1082,7 +1097,7 @@ function openBoard(fenIdx) {
   if (c) {
     document.getElementById('board-expl').innerHTML =
       `<strong style="color:${c.color}">${c.san}${c.symbol} — ${c.labelAr}</strong><br>
-       خسارة: ${c.loss.toFixed(1)}% | ${c.wdlUsed ? 'WDL✓' : 'cp'}`;
+       خسارة: ${typeof c.cpLoss === 'number' ? c.cpLoss + ' cp' : '—'}`;
   }
   showTab('board');
 }
@@ -1219,9 +1234,8 @@ window.addEventListener('popstate', (e) => {
     if (tab === 'board' && S.fens.length) setTimeout(() => drawBoard(S.fens[S.board.idx]), 10);
     if (tab === 'err') loadPatterns();
   } else {
-    // نحن في الحالة الجذرية. لا نغيّر location هنا؛ Android/WebView يمكنه
-    // التعامل مع زر الرجوع الطبيعي بدل إعادة تحميل index بشكل غير متوقع.
-    return;
+    // لا يوجد تاريخ داخلي — الرجوع للصفحة الرئيسية
+    window.location.href = 'index.html';
   }
 });
 function enableTabs() {

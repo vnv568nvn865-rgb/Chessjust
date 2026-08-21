@@ -25,7 +25,7 @@ function makeWorker(){
    const m=x.match(/score (cp|mate) (-?\d+)/); if(m)$('eval').textContent=m[1]==='mate'?`#${m[2]}`:(Number(m[2])/100).toFixed(2);
    const pv=x.match(/\smultipv (\d+).*?\spv\s(.+)$/); const sc=x.match(/\sscore (cp|mate) (-?\d+)/);
    if(pv&&sc&&engineCandidates){engineCandidates[Number(pv[1])-1]={uci:pv[2].trim().split(/\s+/)[0],score:sc[1]==='cp'?Number(sc[2]):(Number(sc[2])>0?100000:-100000),pv:pv[2].trim()};}
-  } else if(x.startsWith('bestmove')){const u=x.split(/\s+/)[1];if(u&&pendingMoveResolve){const r=pendingMoveResolve;const candidates=engineCandidates?engineCandidates.filter(Boolean):[];const chosen=candidates.find(x=>x.uci===u)||{uci:u,score:0,pv:u};r(chosen,candidates);pendingMoveResolve=null;engineCandidates=null;}}
+  } else if(x.startsWith('bestmove')){const u=x.split(/\s+/)[1];if(u&&pendingMoveResolve){const r=pendingMoveResolve;const candidates=engineCandidates?engineCandidates.filter(Boolean):[];const chosen=candidates.find(x=>x.uci===u)||{uci:u,score:0,pv:u};r({chosen,candidates});pendingMoveResolve=null;engineCandidates=null;}}
  };
  worker.postMessage('uci')
 }
@@ -61,11 +61,12 @@ async function engineTurn(){
 }
 
 async function chooseEngineMove(){
- const res=await askEngine();
- let chosen=res[0]||null;
- if(mode!=='normal'&&res.length){
-   const bestScore=res[0].score; const margin=mode==='beast'?90:45;
-   const eligible=res.filter(x=>Math.abs(bestScore-x.score)<=margin);
+ const result=await askEngine();
+ let chosen=result?.chosen||null;
+ const candidates=result?.candidates||[];
+ if(mode!=='normal'&&candidates.length){
+   const bestScore=chosen?.score ?? candidates[0]?.score ?? 0; const margin=mode==='beast'?90:45;
+   const eligible=candidates.filter(x=>Math.abs(bestScore-x.score)<=margin);
    if(eligible.length>1){
      eligible.sort((a,b)=>attackScore(b.uci)-attackScore(a.uci)); chosen=eligible[0];
    }

@@ -271,7 +271,9 @@ class ChessCoach {
 
     // حساب الدقة من CP loss فقط. نستخدم نفس منحنى النقلة، دون نظام الاحتمالات القديم.
     const moveAccs = playerMoves
-      .map(m => typeof m.cpLoss === 'number' ? AnalysisEngine.moveAccuracy(m.cpLoss, 0, -m.cpLoss) : null)
+      .map(m => (typeof m.moveAcc === 'number') ? m.moveAcc :
+        (typeof m.cpLoss === 'number' && typeof m.cpBefore === 'number' && typeof m.cpAfter === 'number'
+          ? AnalysisEngine.moveAccuracy(m.cpLoss, m.cpBefore, m.cpAfter) : null))
       .filter(v => typeof v === 'number');
     const accuracy = moveAccs.length
       ? Math.round(moveAccs.reduce((a,b)=>a+b,0) / moveAccs.length)
@@ -291,10 +293,10 @@ class ChessCoach {
       }));
 
     // إحصاء أنواع الأخطاء
-    const counts = { brilliant: 0, excellent: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 };
+    const counts = { brilliant:0, best:0, great:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0 };
     playerMoves.forEach(m => {
-      const cls = AnalysisEngine.classifyMove(m.cpLoss || 0);
-      counts[cls.type]++;
+      const type = m.classification?.type || m.type;
+      if (Object.prototype.hasOwnProperty.call(counts, type)) counts[type]++;
     });
 
     // نقاط القوة والضعف

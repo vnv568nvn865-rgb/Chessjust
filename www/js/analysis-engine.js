@@ -50,7 +50,7 @@ class AnalysisEngine {
       try { worker = new Worker(this.stockfishPath); }
       catch (e) { reject(e); return; }
 
-      const slot = { worker, busy:false, pendingResolve:null, pendingInfo:null, onInfo:null };
+      const slot = { worker, busy:false, pendingResolve:null, pendingInfo:null, onInfo:null, pendingReadyResolve:null };
       let settled = false, uciOk = false, readyOk = false;
 
       const finish = () => {
@@ -114,6 +114,11 @@ class AnalysisEngine {
         };
         if (typeof slot.onInfo === 'function') slot.onInfo({...slot.pendingInfo});
       }
+      if (line === 'readyok' && slot.pendingReadyResolve) {
+        const rr = slot.pendingReadyResolve;
+        slot.pendingReadyResolve = null;
+        rr(true);
+      }
       if (line.startsWith('bestmove')) {
         const bm = line.split(/\s+/)[1];
         const result = {...(slot.pendingInfo || {}), bestmove:(bm && bm !== '(none)') ? bm : null, valid:true};
@@ -136,11 +141,27 @@ class AnalysisEngine {
 
   static emptyResult() { return {cp:null,mate:null,bestmove:null,depth:0,nodes:0,time:0,pv:[],valid:false}; }
 
-  _querySlot(slot, fen, nodes, onInfo) {
+  async _waitReady(slot, timeoutMs = 3000) {
+    return new Promise(resolve => {
+      let done = false;
+      const finish = ok => { if (done) return; done = true; clearTimeout(timer); slot.pendingReadyResolve = null; resolve(ok); };
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      slot.pendingReadyResolve = () => finish(true);
+      try {
+        slot.worker.postMessage('stop');
+        slot.worker.postMessage('isready');
+      } catch (_) { finish(false); }
+    });
+  }
+
+  async _querySlot(slot, fen, nodes, onInfo) {
+    // تأكد من أن العامل خرج من أي بحث سابق قبل إرسال position/go.
+    const ready = await this._waitReady(slot, 3000);
+    if (!ready) return AnalysisEngine.emptyResult();
     const timeoutMs = Math.max(30000, Math.ceil(nodes / 50000) * 4000);
     return new Promise(resolve => {
       let settled = false, timer = null;
-      const settle = r => { if (settled) return; settled = true; clearTimeout(timer); slot.onInfo = null; resolve(r); };
+      const settle = r => { if (settled) return; settled = true; clearTimeout(timer); slot.onInfo = null; slot.pendingResolve = null; resolve(r); };
       slot.pendingInfo = null;
       slot.onInfo = info => { if (typeof onInfo === 'function') onInfo(info); };
       slot.pendingResolve = settle;

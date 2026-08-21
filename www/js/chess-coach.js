@@ -269,10 +269,13 @@ class ChessCoach {
     const totalCpLoss = playerMoves.reduce((sum, m) => sum + (m.cpLoss || 0), 0);
     const avgCpLoss = playerMoves.length > 0 ? totalCpLoss / playerMoves.length : 0;
 
-    // حساب الدقة (صيغة مشابهة لـ Chess.com)
-    const accuracy = Math.max(0, Math.min(100,
-      Math.round(103.1668 * Math.exp(-0.04354 * avgCpLoss) - 3.1669)
-    ));
+    // حساب الدقة من CP loss فقط. نستخدم نفس منحنى النقلة، دون نظام الاحتمالات القديم.
+    const moveAccs = playerMoves
+      .map(m => typeof m.cpLoss === 'number' ? AnalysisEngine.moveAccuracy(m.cpLoss, 0, -m.cpLoss) : null)
+      .filter(v => typeof v === 'number');
+    const accuracy = moveAccs.length
+      ? Math.round(moveAccs.reduce((a,b)=>a+b,0) / moveAccs.length)
+      : 0;
 
     // تحديد أهم اللحظات (النقلات التي غيرت التقييم بشكل كبير)
     const keyMoments = movesAnalysis

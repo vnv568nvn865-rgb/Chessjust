@@ -1,444 +1,293 @@
 /**
- * AnalysisEngine v2 — محرك Chessjust
+ * AnalysisEngine v3 — Chessjust
  *
- * الإصلاحات الجوهرية عن الإصدار السابق:
- * ✅ Pool من 2 عمال متوازيين (مثل التطبيق الأصلي)
- * ✅ go nodes بدل go depth → وقت محدد ومتوقع
- * ✅ N+1 استعلام موازٍ بدل 2N متتالي (تسريع 40×)
- * ✅ WDL حقيقي من Stockfish لدقة تصنيف أعلى
- * ✅ 5 مستويات + مخصص بأوقات تقديرية دقيقة
- * ✅ تصنيف مبني على win% لا cp خام
- * ✅ كشف Brilliant صارم (تضحية حقيقية)
- * ✅ كشف Missed Opportunity
- * ✅ معلومات لحظية: NPS, Depth, ETA
+ * نظام التقييم الجديد:
+ * - CP (centipawn) هو المصدر الوحيد للدقة والتصنيف.
+ * - لا يعتمد على الاحتمالات القديمة ولا يضع قيمة افتراضية 50% عند فشل المحرك.
+ * - ينتظر uciok/readyok الحقيقيين قبل إعلان المحرك جاهزاً.
+ * - يحافظ على مستويات التحليل وPool المتوازي.
  */
-
 class AnalysisEngine {
   constructor(options = {}) {
     this.stockfishPath = options.stockfishPath || './vendor/stockfish-18-single.js';
-    this.poolSize      = Math.min(options.poolSize || 2, 3); // max 3 workers
-    this.pool          = [];
-    this.ready         = false;
-    this._loading      = false;
-
-    /* ── مستويات التحليل ──
-     * nodes بدل depth: الوقت يصبح متوقعاً ومستقلاً عن تعقيد الموضع.
-     * مع 2 عمال و 71 موضعاً (70 نقلة+البداية): ~36 استعلام/عامل.
-     * الأوقات مقاسة على هاتف متوسط Android 2023.
-     */
+    this.poolSize = Math.min(Math.max(options.poolSize || 2, 1), 3);
+    this.pool = [];
+    this.ready = false;
+    this._loading = false;
     this.LEVELS = {
-      ULTRA:  { id:'ULTRA',  icon:'⚡', nameAr:'خفيف',    nodes:50000,   estSec:2,   descAr:'~2ث / 70 نقلة' },
-      FAST:   { id:'FAST',   icon:'🏃', nameAr:'سريع',    nodes:150000,  estSec:5,   descAr:'~5ث / 70 نقلة' },
-      MEDIUM: { id:'MEDIUM', icon:'⚖️', nameAr:'متوازن',  nodes:500000,  estSec:14,  descAr:'~14ث / 70 نقلة (افتراضي)' },
-      DEEP:   { id:'DEEP',   icon:'🔬', nameAr:'عميق',    nodes:1500000, estSec:40,  descAr:'~40ث / 70 نقلة' },
-      FULL:   { id:'FULL',   icon:'💎', nameAr:'كامل',    nodes:5000000, estSec:130, descAr:'~2 دقيقة — للمباريات المهمة' },
-      CUSTOM: { id:'CUSTOM', icon:'🎛️', nameAr:'مخصص',   nodes:500000,  estSec:null, descAr:'nodes مخصص' }
+      ULTRA:  { id:'ULTRA', icon:'⚡', nameAr:'خفيف',   nodes:50000,   estSec:2,   descAr:'~2ث / 70 نقلة' },
+      FAST:   { id:'FAST',  icon:'🏃', nameAr:'سريع',   nodes:150000,  estSec:5,   descAr:'~5ث / 70 نقلة' },
+      MEDIUM: { id:'MEDIUM',icon:'⚖️', nameAr:'متوازن', nodes:500000,  estSec:14,  descAr:'~14ث / 70 نقلة (افتراضي)' },
+      DEEP:   { id:'DEEP',  icon:'🔬', nameAr:'عميق',   nodes:1500000, estSec:40,  descAr:'~40ث / 70 نقلة' },
+      FULL:   { id:'FULL',  icon:'💎', nameAr:'كامل',   nodes:5000000, estSec:130, descAr:'~2د — للمباريات المهمة' },
+      CUSTOM: { id:'CUSTOM',icon:'🎛️', nameAr:'مخصص',  nodes:500000,  estSec:null,descAr:'nodes مخصص' }
     };
-    this.currentLevel  = 'MEDIUM';
-    this.customNodes   = 500000;
+    this.currentLevel='MEDIUM';
+    this.customNodes=500000;
   }
 
-  /* ══════════════════════════════════════
-     تهيئة pool العمال
-  ══════════════════════════════════════ */
   async initialize() {
-    if (this._loading || this.ready) return;
-    this._loading = true;
-    const errors = [];
-    try {
-      for (let i = 0; i < this.poolSize; i++) {
-        try {
-          const slot = await this._createSlot();
-          this.pool.push(slot);
-        } catch (e) {
-          errors.push(e);
-          if (this.pool.length === 0 && i === this.poolSize - 1) throw e;
-        }
-      }
-      if (this.pool.length === 0) throw errors[0];
-      this.ready = true;
-    } finally {
-      this._loading = false;
+    if (this.ready) return;
+    if (this._loading) {
+      while (this._loading) await new Promise(r=>setTimeout(r,25));
+      if (!this.ready) throw new Error('تعذر تهيئة المحرك');
+      return;
     }
+    this._loading=true;
+    const errors=[];
+    try {
+      for (let i=0;i<this.poolSize;i++) {
+        try { this.pool.push(await this._createSlot()); }
+        catch(e){ errors.push(e); }
+      }
+      if (!this.pool.length) throw (errors[0] || new Error('تعذر تشغيل Stockfish'));
+      this.ready=true;
+    } finally { this._loading=false; }
   }
 
   _createSlot() {
-    return new Promise((resolve, reject) => {
-      let settled = false;
+    return new Promise((resolve,reject)=>{
       let worker;
-      let timer = null;
-      try { worker = new Worker(this.stockfishPath); }
-      catch (e) { reject(e); return; }
-
-      const slot = { worker, busy: false, pendingResolve: null, pendingInfo: null };
-
-      const fail = (e) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        try { worker.terminate(); } catch (_) {}
-        reject(e instanceof Error ? e : new Error(this.stockfishPath + ' — worker error'));
+      try { worker=new Worker(this.stockfishPath); }
+      catch(e){ reject(e); return; }
+      let settled=false;
+      let uciOk=false;
+      let readyOk=false;
+      const slot={worker,busy:false,pendingResolve:null,pendingInfo:null};
+      const fail=(e)=>{
+        if(settled) return;
+        settled=true;
+        try{worker.terminate();}catch(_){ }
+        reject(e instanceof Error?e:new Error('Stockfish worker error'));
       };
-
-      worker.onerror = (e) => fail(new Error(this.stockfishPath + ' — ' + (e.message || 'worker error')));
-
-      // لا نعتبر المحرك جاهزًا بعد مهلة ثابتة. ننتظر readyok من UCI.
-      // هذا يمنع بدء التحليل قبل اكتمال تحميل NNUE/المحرك على الأجهزة البطيئة.
-      worker.onmessage = (e) => {
-        const line = typeof e.data === 'string' ? e.data.trim() : '';
-        if (line === 'readyok' && !settled) {
-          settled = true;
+      const timer=setTimeout(()=>fail(new Error('Stockfish لم يرسل readyok')),12000);
+      worker.onerror=fail;
+      worker.onmessage=(e)=>{
+        const line=typeof e.data==='string'?e.data:'';
+        if(!line) return;
+        if(line==='uciok') uciOk=true;
+        if(line==='readyok') readyOk=true;
+        if(uciOk && readyOk && !settled){
+          settled=true;
           clearTimeout(timer);
           this._attachHandler(slot);
           resolve(slot);
         }
       };
-
-      try {
-        worker.postMessage('uci');
-        worker.postMessage('setoption name UCI_ShowWDL value true');
-        worker.postMessage('isready');
-      } catch (e) {
-        fail(e);
-        return;
-      }
-
-      // مهلة أمان سخية؛ لا نترك التطبيق ينتظر إلى الأبد.
-      timer = setTimeout(() => {
-        fail(new Error(this.stockfishPath + ' — timeout waiting for readyok'));
-      }, 15000);
+      worker.postMessage('uci');
+      // لا نطلب الاحتمالات القديمة: CP هو النظام الوحيد.
+      worker.postMessage('isready');
     });
   }
 
   _attachHandler(slot) {
-    slot.worker.onmessage = (e) => {
-      const line = typeof e.data === 'string' ? e.data : '';
-      if (!line) return;
-
-      const cpM   = line.match(/\bscore cp (-?\d+)/);
-      const mateM = line.match(/\bscore mate (-?\d+)/);
-      const wdlM  = line.match(/\bwdl (\d+) (\d+) (\d+)/);
-      const depM  = line.match(/\bdepth (\d+)/);
-      const nodM  = line.match(/\bnodes (\d+)/);
-      const timM  = line.match(/\btime (\d+)/);
-      const pvM   = line.match(/\bpv (.+)/);
-
-      if (cpM || mateM) {
-        const prev = slot.pendingInfo || {};
-        slot.pendingInfo = {
-          cp:    cpM  ? parseInt(cpM[1])  : prev.cp  ?? null,
-          mate:  mateM ? parseInt(mateM[1]) : prev.mate ?? null,
-          wdl:   wdlM ? { w:+wdlM[1], d:+wdlM[2], l:+wdlM[3] } : prev.wdl || null,
-          depth: depM ? parseInt(depM[1]) : prev.depth || 0,
-          nodes: nodM ? parseInt(nodM[1]) : prev.nodes || 0,
-          time:  timM ? parseInt(timM[1]) : prev.time  || 0,
-          pv:    pvM  ? pvM[1].trim().split(/\s+/) : prev.pv || []
+    slot.worker.onmessage=(e)=>{
+      const line=typeof e.data==='string'?e.data:'';
+      if(!line) return;
+      const cpM=line.match(/\bscore cp (-?\d+)/);
+      const mateM=line.match(/\bscore mate (-?\d+)/);
+      const depM=line.match(/\bdepth (\d+)/);
+      const nodM=line.match(/\bnodes (\d+)/);
+      const timM=line.match(/\btime (\d+)/);
+      const pvM=line.match(/\bpv (.+)/);
+      if(cpM || mateM || depM || nodM || timM || pvM){
+        const prev=slot.pendingInfo || {};
+        slot.pendingInfo={
+          cp: cpM ? parseInt(cpM[1],10) : (prev.cp ?? null),
+          mate: mateM ? parseInt(mateM[1],10) : (prev.mate ?? null),
+          depth: depM ? parseInt(depM[1],10) : (prev.depth || 0),
+          nodes: nodM ? parseInt(nodM[1],10) : (prev.nodes || 0),
+          time: timM ? parseInt(timM[1],10) : (prev.time || 0),
+          pv: pvM ? pvM[1].trim().split(/\s+/) : (prev.pv || [])
         };
       }
-
-      if (line.startsWith('bestmove')) {
-        const bm  = line.split(/\s+/)[1];
-        const res = {
-          ...(slot.pendingInfo || {}),
-          bestmove: bm && bm !== '(none)' ? bm : null
-        };
-        slot.pendingInfo = null;
-        if (slot.pendingResolve) {
-          const cb = slot.pendingResolve;
-          slot.pendingResolve = null;
-          cb(res);
-        }
+      if(line.startsWith('bestmove')){
+        const bm=line.split(/\s+/)[1];
+        const result={...(slot.pendingInfo||{}),bestmove:(bm && bm!=='(none)')?bm:null};
+        slot.pendingInfo=null;
+        if(slot.pendingResolve){const cb=slot.pendingResolve;slot.pendingResolve=null;cb(result);}
       }
     };
-
-    slot.worker.onerror = () => {
-      if (slot.pendingResolve) {
-        const cb = slot.pendingResolve;
-        slot.pendingResolve = null;
-        cb({ cp:null, mate:null, wdl:null, bestmove:null, depth:0, nodes:0, time:0 });
-      }
+    slot.worker.onerror=()=>{
+      if(slot.pendingResolve){const cb=slot.pendingResolve;slot.pendingResolve=null;cb(AnalysisEngine.emptyResult());}
     };
   }
 
-  _querySlot(slot, fen, nodes) {
-    // Safety timeout: عادةً 20× أطول من الوقت المتوقع
-    const timeoutMs = Math.max(20000, (nodes / 50000) * 1000 * 3);
-    return new Promise((resolve) => {
-      let settled = false;
-      const settle = (r) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(r);
-      };
-      const empty = { cp:null, mate:null, wdl:null, bestmove:null, depth:0, nodes:0, time:0 };
-      const timer = setTimeout(() => {
-        try { slot.worker.postMessage('stop'); } catch (_) {}
-        setTimeout(() => settle(empty), 2000);
-      }, timeoutMs);
+  static emptyResult(){return {cp:null,mate:null,bestmove:null,depth:0,nodes:0,time:0,pv:[]};}
 
-      slot.pendingResolve = settle;
-      try {
+  _querySlot(slot,fen,nodes){
+    const timeoutMs=Math.max(30000,Math.ceil(nodes/50000)*3000);
+    return new Promise(resolve=>{
+      let settled=false;
+      let timer=null;
+      const settle=(r)=>{if(settled)return;settled=true;clearTimeout(timer);resolve(r);};
+      slot.pendingInfo=null;
+      slot.pendingResolve=settle;
+      timer=setTimeout(()=>{
+        try{slot.worker.postMessage('stop');}catch(_){ }
+        setTimeout(()=>settle(AnalysisEngine.emptyResult()),2000);
+      },timeoutMs);
+      try{
         slot.worker.postMessage('ucinewgame');
-        slot.worker.postMessage('position fen ' + fen);
-        slot.worker.postMessage('go nodes ' + nodes);
-      } catch (e) {
-        settle(empty);
-      }
+        slot.worker.postMessage('position fen '+fen);
+        slot.worker.postMessage('go nodes '+nodes);
+      }catch(_){settle(AnalysisEngine.emptyResult());}
     });
   }
 
-  /* ══════════════════════════════════════
-     تحليل موضع واحد (للتحليل اللحظي)
-  ══════════════════════════════════════ */
-  async queryPosition(fen, overrideNodes) {
-    if (!this.ready) throw new Error('المحرك غير جاهز');
-    const nodes = overrideNodes || this._getNodes();
-    const slot  = await this._waitForFreeSlot();
-    slot.busy   = true;
-    const r     = await this._querySlot(slot, fen, nodes);
-    slot.busy   = false;
-    return r;
+  async queryPosition(fen,overrideNodes){
+    if(!this.ready) throw new Error('المحرك غير جاهز');
+    const slot=await this._waitForFreeSlot(); slot.busy=true;
+    try{return await this._querySlot(slot,fen,overrideNodes||this._getNodes());}
+    finally{slot.busy=false;}
   }
 
-  async _waitForFreeSlot() {
-    const free = this.pool.find(s => !s.busy);
-    if (free) return free;
-    return new Promise(resolve => {
-      const iv = setInterval(() => {
-        const f = this.pool.find(s => !s.busy);
-        if (f) { clearInterval(iv); resolve(f); }
-      }, 40);
+  async _waitForFreeSlot(){
+    const free=this.pool.find(s=>!s.busy); if(free)return free;
+    return new Promise(resolve=>{
+      const iv=setInterval(()=>{const f=this.pool.find(s=>!s.busy);if(f){clearInterval(iv);resolve(f);}},40);
     });
   }
 
-  /* ══════════════════════════════════════
-     تحليل متوازٍ لمجموعة مواضع ← الجوهر
-     - N+1 موضع / (عدد العمال) ≈ نصف الوقت
-     - 71 موضع + 2 عمال = ~36 استعلام/عامل
-     - 500k nodes/استعلام ≈ 250ms/استعلام
-     - الوقت الإجمالي ≈ 36 × 250ms ≈ 9 ثوانٍ
-  ══════════════════════════════════════ */
-  async analyzeBulk(fens, overrideNodes, onEach) {
-    if (!this.ready) throw new Error('المحرك غير جاهز');
-    const nodes   = overrideNodes || this._getNodes();
-    const results = new Array(fens.length).fill(null);
-    let   nextIdx = 0;
-
-    const runWorker = async (slot) => {
-      while (nextIdx < fens.length) {
-        const idx  = nextIdx++;
-        slot.busy  = true;
-        const r    = await this._querySlot(slot, fens[idx], nodes);
-        slot.busy  = false;
-        results[idx] = r;
-        if (onEach) onEach(idx, r);
+  async analyzeBulk(fens,overrideNodes,onEach){
+    if(!this.ready) throw new Error('المحرك غير جاهز');
+    const nodes=overrideNodes||this._getNodes();
+    const results=new Array(fens.length).fill(null);
+    let nextIdx=0;
+    const run=async(slot)=>{
+      while(true){
+        const idx=nextIdx++;
+        if(idx>=fens.length) break;
+        slot.busy=true;
+        try{
+          const r=await this._querySlot(slot,fens[idx],nodes);
+          results[idx]=r;
+          if(onEach) onEach(idx,r);
+        }finally{slot.busy=false;}
       }
     };
-
-    await Promise.all(this.pool.map(s => runWorker(s)));
+    await Promise.all(this.pool.map(run));
     return results;
   }
 
-  /* ══════════════════════════════════════
-     إدارة المستويات
-  ══════════════════════════════════════ */
-  _getNodes() {
-    if (this.currentLevel === 'CUSTOM') return Math.max(10000, this.customNodes);
-    return this.LEVELS[this.currentLevel]?.nodes || 500000;
+  _getNodes(){return this.currentLevel==='CUSTOM'?Math.max(10000,this.customNodes):(this.LEVELS[this.currentLevel]?.nodes||500000);}
+  setLevel(id){if(this.LEVELS[id])this.currentLevel=id;}
+  setCustomNodes(n){this.customNodes=Math.max(10000,n);this.currentLevel='CUSTOM';}
+  getLevel(){return this.LEVELS[this.currentLevel];}
+  getAllLevels(){return Object.values(this.LEVELS);}
+  estimateSeconds(numMoves){const lv=this.LEVELS[this.currentLevel];return lv?.estSec?Math.ceil(lv.estSec*numMoves/70):null;}
+
+  static mateToCp(mate){
+    if(typeof mate!=='number'||!Number.isFinite(mate))return null;
+    const d=Math.abs(mate);
+    return mate>0?Math.max(1000,10000-d*50):-Math.max(1000,10000-d*50);
+  }
+  static resultToMoverCp(result){
+    if(!result)return null;
+    if(result.mate!==null&&result.mate!==undefined)return AnalysisEngine.mateToCp(result.mate);
+    return typeof result.cp==='number'&&Number.isFinite(result.cp)?Math.max(-10000,Math.min(10000,result.cp)):null;
+  }
+  static resultToWhiteCp(result,fen){
+    const cp=AnalysisEngine.resultToMoverCp(result); if(cp===null)return null;
+    const turn=(fen||'').split(/\s+/)[1]||'w';
+    return turn==='b'?-cp:cp;
+  }
+  static cpToWinPct(cp){
+    if(typeof cp!=='number'||!Number.isFinite(cp))return null;
+    const c=Math.max(-1000,Math.min(1000,cp));
+    return 50+50*(2/(1+Math.exp(-0.00368208*c))-1);
+  }
+  static resultToWhiteWinPct(result,fen){
+    const cp=AnalysisEngine.resultToWhiteCp(result,fen);
+    return cp===null?null:AnalysisEngine.cpToWinPct(cp);
+  }
+  static cpLossFromResults(before,after,mover){
+    const b=AnalysisEngine.resultToMoverCp(before), a=AnalysisEngine.resultToMoverCp(after);
+    if(b===null||a===null)return null;
+    return Math.max(0,b-a);
+  }
+  static cpLossFromWhiteCp(beforeWhite,afterWhite,mover){
+    if(typeof beforeWhite!=='number'||typeof afterWhite!=='number')return null;
+    return Math.max(0,mover==='w'?beforeWhite-afterWhite:afterWhite-beforeWhite);
+  }
+  static cpImpactLoss(cpLoss,beforeCp,afterCp){
+    if(typeof cpLoss!=='number')return null;
+    const b=typeof beforeCp==='number'?Math.max(-1000,Math.min(1000,beforeCp)):0;
+    const a=typeof afterCp==='number'?Math.max(-1000,Math.min(1000,afterCp)):b;
+    const wb=AnalysisEngine.cpToWinPct(b), wa=AnalysisEngine.cpToWinPct(a);
+    if(wb===null||wa===null)return Math.min(100,cpLoss/10);
+    return Math.max(0,wb-wa);
+  }
+  static moveAccuracy(cpLoss,beforeCp,afterCp){
+    if(cpLoss===null)return null;
+    const b=typeof beforeCp==='number'?Math.max(-1000,Math.min(1000,beforeCp)):0;
+    const a=typeof afterCp==='number'?Math.max(-1000,Math.min(1000,afterCp)):b;
+    const wb=AnalysisEngine.cpToWinPct(b), wa=AnalysisEngine.cpToWinPct(a);
+    const impact=Math.max(0,wb-wa);
+    return Math.max(0,Math.min(100,103.1668*Math.exp(-0.04354*impact)-3.1669));
   }
 
-  setLevel(id)        { if (this.LEVELS[id]) this.currentLevel = id; }
-  setCustomNodes(n)   { this.customNodes = Math.max(10000, n); this.currentLevel = 'CUSTOM'; }
-  getLevel()          { return this.LEVELS[this.currentLevel]; }
-  getAllLevels()       { return Object.values(this.LEVELS); }
-
-  estimateSeconds(numMoves) {
-    const lv = this.LEVELS[this.currentLevel];
-    if (!lv?.estSec) return null;
-    return Math.ceil(lv.estSec * numMoves / 70);
-  }
-
-  /* ══════════════════════════════════════
-     تحويل نتيجة Stockfish إلى win%
-     (مطابق للتطبيق الأصلي)
-  ══════════════════════════════════════ */
-  static wdlToWinPct(wdl) {
-    // WDL per-mille من منظور الطرف المتحرك
-    return (wdl.w + wdl.d * 0.5) / 10;
-  }
-
-  static cpToWinPct(cp) {
-    // تقدير احتياطي عند غياب WDL
-    const capped = Math.max(-1000, Math.min(1000, cp));
-    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * capped)) - 1);
-  }
-
-  static resultToMoverWinPct(result) {
-    if (!result) return 50;
-
-    // WDL في Stockfish مفيد للعرض، لكنه ذو دقة منخفضة (per-mille) ويمكن
-    // أن يتشبع عند 0/100 فيحوّل فروقًا حقيقية بين النقلات إلى خسارة = 0.
-    // لذلك Accuracy/تصنيف النقلات يعتمدان على cp، مع WDL كاحتياط فقط.
-    if (result.mate !== null && result.mate !== undefined)
-      return result.mate > 0 ? 99.5 : 0.5;
-
-    if (typeof result.cp === 'number' && Number.isFinite(result.cp))
-      return AnalysisEngine.cpToWinPct(result.cp);
-
-    if (result.wdl) return AnalysisEngine.wdlToWinPct(result.wdl);
-    return 50;
-  }
-
-  static resultToWhiteWinPct(result, fen) {
-    if (!result) return 50;
-    const turn     = (fen || '').split(' ')[1] || 'w';
-    const moverPct = AnalysisEngine.resultToMoverWinPct(result);
-    return turn === 'b' ? (100 - moverPct) : moverPct;
-  }
-
-  /* ══════════════════════════════════════
-     تصنيف النقلة (مبني على WDL win% + قواعد صارمة)
-     - Brilliant: شرط التضحية الحقيقية
-     - Best: نفس نقلة المحرك بالضبط
-     - Missed Opportunity: كان يفوز لكنه أضاع الفرصة
-  ══════════════════════════════════════ */
-  static classifyMove(whitePctBefore, whitePctAfter, mover, playedUci, bestUci, verboseMv) {
-    const PV = { p:1, n:3, b:3, r:5, q:9, k:0 };
-
-    // حماية من null/undefined
-    const wpB = (typeof whitePctBefore === 'number' && !isNaN(whitePctBefore)) ? whitePctBefore : 50;
-    const wpA = (typeof whitePctAfter  === 'number' && !isNaN(whitePctAfter))  ? whitePctAfter  : 50;
-
-    const pBefore = mover === 'w' ? wpB : (100 - wpB);
-    const pAfter  = mover === 'w' ? wpA : (100 - wpA);
-    const loss    = Math.max(0, pBefore - pAfter);
-
-    // isBest: يشترط وجود كلا الـ UCI ومطابقتهما
-    const isBest = !!(bestUci && bestUci !== 'null' && bestUci !== '(none)' &&
-                      playedUci && playedUci === bestUci);
-
-    /* Brilliant (رائعة ‼):
-     * 1. نفس نقلة المحرك
-     * 2. تضحية حقيقية (أخذ قطعة أقل قيمة بقطعة أعلى)
-     * 3. النقلة لا تزال في صالح اللاعب (loss ≤ 3%)
-     */
-    const isGoodSac = isBest &&
-      verboseMv?.captured &&
-      (PV[verboseMv.piece] || 0) > (PV[verboseMv.captured] || 0) &&
-      loss <= 3;
-
-    /* Great (مدهشة !):
-     * نقلة ممتازة جداً لكنها ليست نفس نقلة المحرك بالضبط.
-     * يعكس إيجاد بديل إبداعي بنفس الجودة تقريباً.
-     * الشرط: loss ≤ 2% وليس أفضل نقلة
-     */
-    // "مدهشة" يجب أن تكون نادرة: لا نعطيها لمجرد أن أي بديل خسر أقل من
-    // 2%. نشترط فقدانًا شبه معدومًا مع علامة شطرنجية ملموسة (تكتيك/أخذ/
-    // كش/تضحية). أفضل نقلة نفسها تبقى في فئة Best.
-    const isTactical = !!(verboseMv?.captured || verboseMv?.flags?.includes?.('c') ||
-                          verboseMv?.san?.includes?.('+') || verboseMv?.san?.includes?.('#'));
-    const isGreat = !isBest && loss <= 0.75 && isTactical && !!playedUci;
-
-    // Missed Opportunity
-    const missedOpportunity = pBefore > 65 && loss > 10 && !isBest;
-
-    let type, labelAr, symbol;
-    if      (isGoodSac)       { type='brilliant';  labelAr='رائعة';      symbol='‼'; }
-    else if (isBest)          { type='best';       labelAr='أفضل نقلة';  symbol='★'; }
-    else if (isGreat)         { type='great';      labelAr='مدهشة';       symbol='!'; }
-    else if (loss <= 5)       { type='excellent';  labelAr='ممتازة';       symbol=''; }
-    else if (loss <= 10)      { type='good';       labelAr='جيدة';         symbol=''; }
-    else if (loss <= 18)      { type='inaccuracy'; labelAr='غير دقيقة';    symbol='?!'; }
-    else if (loss <= 25)      { type='mistake';    labelAr='خطأ';           symbol='?'; }
-    else                      { type='blunder';    labelAr='خطأ فادح';      symbol='??'; }
-
-    if (missedOpportunity && (type === 'mistake' || type === 'inaccuracy')) {
-      labelAr = 'تضييع فرصة'; symbol = '⚡';
+  static classifyMove(a,b,c,d,e,f,g,h){
+    // دعم الاستدعاء القديم classifyMove(cpLoss) من الأدوات الأخرى.
+    if(arguments.length===1 && typeof a==='number'){
+      const loss=Math.max(0,a);
+      let type='excellent',labelAr='ممتازة',symbol='';
+      if(loss<=10){type=loss===0?'best':'great';labelAr=loss===0?'أفضل نقلة':'مدهشة';symbol=loss===0?'★':'!';}
+      else if(loss<=25){type='excellent';labelAr='ممتازة';}
+      else if(loss<=50){type='good';labelAr='جيدة';}
+      else if(loss<=100){type='inaccuracy';labelAr='غير دقيقة';symbol='?!';}
+      else if(loss<=200){type='mistake';labelAr='خطأ';symbol='?';}
+      else {type='blunder';labelAr='خطأ فادح';symbol='??';}
+      return {type,labelAr,symbol,loss,cpLoss:loss,moveAcc:AnalysisEngine.moveAccuracy(loss,0,-loss),missedOpportunity:false,color:AnalysisEngine.colors()[type]||'#9fc98a',bg:(AnalysisEngine.colors()[type]||'#9fc98a')+'22',mover:null};
     }
-
-    const COLORS = {
-      brilliant:'#37c6e0', best:'#5f9e6e', great:'#7fb87a', excellent:'#9fc98a',
-      good:'#b5d4a0', inaccuracy:'#d9b64e', mistake:'#d98a3f', blunder:'#c95a4a'
-    };
-    const color = COLORS[type] || '#9fc98a';
-
-    return {
-      type, labelAr, symbol, loss, missedOpportunity,
-      moveAcc: AnalysisEngine.moveAccuracy(loss),
-      color, bg: color + '22', mover
-    };
-  }
-
-  /* ══════════════════════════════════════
-     دقة النقلة والمباراة
-     (صيغة Chess.com مع وزن التقلب)
-  ══════════════════════════════════════ */
-  static moveAccuracy(winPercentLoss) {
-    return Math.min(100, Math.max(0, 103.1668 * Math.exp(-0.04354 * winPercentLoss) - 3.1669));
-  }
-
-  static gameAccuracy(classifications, whitePcts, mover) {
-    let total = 0, weight = 0;
-    for (let i = 0; i < classifications.length; i++) {
-      const c = classifications[i];
-      // استخدم isPlayer كمرجع احتياطي إذا كان mover غير متطابق
-      const isPlayerMove = (c.mover === mover) || (!c.mover && c.isPlayer);
-      if (!isPlayerMove) continue;
-
-      const acc   = typeof c.moveAcc === 'number' ? c.moveAcc : 0;
-      const start = Math.max(0, i - 2);
-      const end   = Math.min((whitePcts.length || 1) - 1, i + 3);
-      const slice = whitePcts.slice(start, end + 1).filter(v => typeof v === 'number');
-      const mean  = slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 50;
-      const variance = slice.length
-        ? slice.reduce((a, b) => a + (b - mean) ** 2, 0) / slice.length : 0;
-      const vol   = Math.max(0.5, Math.sqrt(variance));
-      total  += acc * vol;
-      weight += vol;
+    const beforeResult=a, afterResult=b, mover=c, playedUci=d, bestUci=e, verboseMv=f;
+    const beforeCp=AnalysisEngine.resultToMoverCp(beforeResult);
+    const afterMoverCp=AnalysisEngine.resultToMoverCp(afterResult);
+    if(beforeCp===null||afterMoverCp===null||!playedUci){
+      return {type:'unrated',labelAr:'غير متاحة',symbol:'—',loss:null,cpLoss:null,moveAcc:null,missedOpportunity:false,color:'#8c8175',bg:'#8c817522',mover};
     }
-    // 0 بدل 100 عند لا نقلات — يوضح للمستخدم أن التحليل غير مكتمل
-    if (weight === 0) return 0;
-    return Math.max(0, Math.min(100, total / weight));
+    const cpLoss=Math.max(0,beforeCp-afterMoverCp);
+    const isBest=!!(bestUci&&bestUci!=='null'&&bestUci!=='(none)'&&playedUci===bestUci);
+    const PV={p:1,n:3,b:3,r:5,q:9,k:0};
+    const sacrifice=!!(verboseMv?.captured && PV[verboseMv.piece] < PV[verboseMv.captured]);
+    const brilliant=isBest && sacrifice && cpLoss<=15 && beforeCp>-500 && beforeCp<900;
+    // Great is deliberately narrower than Excellent and cannot be awarded to a best move.
+    const great=!isBest && cpLoss>0 && cpLoss<=8 && Math.abs(beforeCp)<=500;
+    const missedOpportunity=beforeCp>=150 && cpLoss>=80 && !isBest;
+    let type,labelAr,symbol;
+    if(brilliant){type='brilliant';labelAr='رائعة';symbol='‼';}
+    else if(isBest){type='best';labelAr='أفضل نقلة';symbol='★';}
+    else if(great){type='great';labelAr='مدهشة';symbol='!';}
+    else if(cpLoss<=25){type='excellent';labelAr='ممتازة';symbol='';}
+    else if(cpLoss<=50){type='good';labelAr='جيدة';symbol='';}
+    else if(cpLoss<=100){type='inaccuracy';labelAr='غير دقيقة';symbol='?!';}
+    else if(cpLoss<=200){type='mistake';labelAr='خطأ';symbol='?';}
+    else {type='blunder';labelAr='خطأ فادح';symbol='??';}
+    if(missedOpportunity && (type==='mistake'||type==='inaccuracy')){labelAr='تضييع فرصة';symbol='⚡';}
+    const color=AnalysisEngine.colors()[type]||'#9fc98a';
+    return {type,labelAr,symbol,loss:cpLoss,cpLoss,moveAcc:AnalysisEngine.moveAccuracy(cpLoss,beforeCp,afterMoverCp),missedOpportunity,color,bg:color+'22',mover,beforeCp,afterCp:afterMoverCp,isBest};
   }
-
-  /* ══════════════════════════════════════
-     أدوات لحظية: ETA, NPS, تسمية التقييم
-  ══════════════════════════════════════ */
-  static formatETA(done, total, elapsedMs) {
-    if (done === 0 || total === 0) return '...';
-    const remaining = ((total - done) / done) * elapsedMs;
-    if (remaining < 60000) return `${Math.ceil(remaining / 1000)}ث`;
-    return `${Math.ceil(remaining / 60000)}د`;
-  }
-
-  static formatNPS(nodes, elapsedMs) {
-    if (!nodes || elapsedMs < 200) return '—';
-    const nps = nodes / (elapsedMs / 1000);
-    if (nps >= 1e6) return `${(nps / 1e6).toFixed(1)}M/ث`;
-    if (nps >= 1000) return `${Math.round(nps / 1000)}K/ث`;
-    return `${Math.round(nps)}/ث`;
-  }
-
-  static evalLabel(result, fen) {
-    if (!result) return '+0.00';
-    const turn = (fen || '').split(' ')[1] || 'w';
-    if (result.mate !== null && result.mate !== undefined) {
-      let m = result.mate;
-      if (turn === 'b') m = -m;
-      return m > 0 ? `M${m}` : `-M${Math.abs(m)}`;
+  static colors(){return {brilliant:'#37c6e0',best:'#5f9e6e',great:'#7fb87a',excellent:'#9fc98a',good:'#b5d4a0',inaccuracy:'#d9b64e',mistake:'#d98a3f',blunder:'#c95a4a',unrated:'#8c8175'};}
+  static gameAccuracy(classifications,whiteCp,mover){
+    const vals=[];
+    for(const c of classifications){
+      if(c.mover!==mover||typeof c.moveAcc!=='number')continue;
+      vals.push(c.moveAcc);
     }
-    let cp = result.cp ?? 0;
-    if (turn === 'b') cp = -cp;
-    return (cp >= 0 ? '+' : '') + (cp / 100).toFixed(2);
+    if(!vals.length)return 0;
+    return vals.reduce((a,b)=>a+b,0)/vals.length;
   }
-
-  destroy() {
-    this.pool.forEach(s => { try { s.worker.terminate(); } catch (_) {} });
-    this.pool  = [];
-    this.ready = false;
+  static formatETA(done,total,elapsedMs){if(!done||!total)return '...';const rem=((total-done)/done)*elapsedMs;return rem<60000?`${Math.ceil(rem/1000)}ث`:`${Math.ceil(rem/60000)}د`;}
+  static formatNPS(nodes,elapsedMs){if(!nodes||elapsedMs<200)return '—';const nps=nodes/(elapsedMs/1000);return nps>=1e6?`${(nps/1e6).toFixed(1)}M/ث`:nps>=1000?`${Math.round(nps/1000)}K/ث`:`${Math.round(nps)}/ث`;}
+  static evalLabel(result,fen){
+    if(!result)return '—';
+    const turn=(fen||'').split(/\s+/)[1]||'w';
+    if(result.mate!==null&&result.mate!==undefined){let m=result.mate;if(turn==='b')m=-m;return m>0?`M${m}`:`-M${Math.abs(m)}`;}
+    const cp=AnalysisEngine.resultToWhiteCp(result,fen);
+    if(cp===null)return '—';
+    return (cp>=0?'+':'')+(cp/100).toFixed(2);
   }
+  destroy(){this.pool.forEach(s=>{try{s.worker.terminate();}catch(_){}});this.pool=[];this.ready=false;}
 }
-
-if (typeof window !== 'undefined') window.AnalysisEngine = AnalysisEngine;
-if (typeof module !== 'undefined')  module.exports = AnalysisEngine;
+if(typeof window!=='undefined')window.AnalysisEngine=AnalysisEngine;
+if(typeof module!=='undefined')module.exports=AnalysisEngine;

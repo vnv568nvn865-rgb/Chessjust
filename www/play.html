@@ -13,7 +13,7 @@ const MODES=['normal','beast','defense'];
 const modeState={};
 for(const m of MODES) modeState[m]={game:new Chess(),lastMove:null,selected:null,ended:false};
 let mode='normal',flipped=false,busy=false;
-let enginePool=[],engineReady=false,pending=null,searchGeneration=0,searchTimer=null,searchGraceTimer=null;
+let enginePool=[],engineReady=false,pending=null,searchGeneration=0,searchTimer=null;
 let lastInfo={depth:0,score:0,pv:'',nodes:0,nps:0,stableMs:0,lastChange:0,wdl:null};
 const $=id=>document.getElementById(id);
 function state(){return modeState[mode]}
@@ -35,80 +35,167 @@ function clickSq(sq){const st=state(),g=st.game;if(busy||g.game_over()||st.ended
  const mv=g.move({from:st.selected,to:sq,promotion:'q'});if(!mv){if(g.get(sq)?.color==='w')st.selected=sq;else st.selected=null;draw();return}
  st.lastMove={from:mv.from,to:mv.to};st.selected=null;busy=true;renderMoves();explainMove(mv);draw();updateStatus();setTimeout(engineTurn,40)}
 function setEngineDebug(){const i=lastInfo;$('engineDebug').innerHTML=`Engine: Stockfish 18 • Depth: ${i.depth||0} • Nodes: ${(i.nodes||0).toLocaleString()} • NPS: ${(i.nps||0).toLocaleString()} • ${i.wdl?'WDL: '+i.wdl:''}`;if(i.pv)$('engineDebug').innerHTML+=`<br><span class="best-line">PV: ${i.pv}</span>`}
-function parseScore(x){const m=x.match(/score (cp|mate) (-?\d+)/);if(!m)return null;return m[1]==='cp'?Number(m[2]):(Number(m[2])>0?100000:-100000)}
-function applyStrength(w,level){let skill=Math.round((level-250)/(3200-250)*20);skill=Math.max(0,Math.min(20,skill));
- w.postMessage('setoption name Skill Level value '+skill);
- // Stockfish UCI_Elo is a bounded strength target. Keep it disabled at maximum.
- if(level>=3200){w.postMessage('setoption name UCI_LimitStrength value false')}
- else if(level>=1300){const elo=Math.round(Math.max(1320,Math.min(3190,level)));w.postMessage('setoption name UCI_LimitStrength value true');w.postMessage('setoption name UCI_Elo value '+elo)}
- else{w.postMessage('setoption name UCI_LimitStrength value false')}
- w.postMessage('setoption name MultiPV value 1');
- w.postMessage('setoption name Threads value 1');
- w.postMessage('setoption name Hash value 48');
+
+function parseScore(x){
+ const m=x.match(/score (cp|mate) (-?\d+)/);
+ if(!m)return null;
+ return m[1]==='cp'?Number(m[2]):(Number(m[2])>0?100000:-100000);
 }
-function makeSlot(url,index){return new Promise((resolve,reject)=>{let w;try{w=new Worker(url)}catch(e){reject(e);return}const slot={worker:w,index,url,ready:false,best:null,info:{depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()}};w.onerror=()=>reject(new Error('engine load failed'));w.onmessage=e=>handleEngineMessage(slot,String(e.data||''));w.postMessage('uci');const t=setTimeout(()=>{if(!slot.ready)reject(new Error('engine timeout'));else resolve(slot)},5000);slot._resolveReady=()=>{clearTimeout(t);if(!slot.ready){slot.ready=true;resolve(slot)}}});}
-function handleEngineMessage(slot,x){
- if(x==='uciok'){applyStrength(slot.worker,Number($('strength').value));slot.worker.postMessage('isready');return}
- if(x==='readyok'){slot.ready=true;slot._resolveReady?.();return}
- if(!x.startsWith('info')&&!x.startsWith('bestmove'))return;
- if(x.startsWith('info')){
-  const dm=x.match(/\bdepth (\d+)/),nm=x.match(/\bnodes (\d+)/),npsm=x.match(/\bnps (\d+)/),pvm=x.match(/\spv\s(.+)$/),score=parseScore(x);
-  if(dm)slot.info.depth=+dm[1];if(nm)slot.info.nodes=+nm[1];if(npsm)slot.info.nps=+npsm[1];if(score!==null){if(score!==slot.info.score||pvm?.[1]?.split(/\s+/)[0]!==slot.info.pv)slot.info.lastChange=performance.now();slot.info.score=score}if(pvm)slot.info.pv=pvm[1].trim();
-  if(slot.index===0){lastInfo={...lastInfo,...slot.info,pv:slot.info.pv.split(/\s+/)[0],stableMs:performance.now()-slot.info.lastChange};setEval(score);setEngineDebug()}
+function applyStrength(w,level){
+ let skill=Math.round((level-250)/(3200-250)*20);
+ skill=Math.max(0,Math.min(20,skill));
+ try{
+  w.postMessage('setoption name Skill Level value '+skill);
+  w.postMessage('setoption name UCI_LimitStrength value '+(level>=3200?'false':'true'));
+  if(level<3200 && level>=1300) w.postMessage('setoption name UCI_Elo value '+Math.round(level));
+  w.postMessage('setoption name Hash value 32');
+  w.postMessage('setoption name MultiPV value 1');
+ }catch(e){showEngineError('setoption: '+e.message)}
+}
+function debug(msg){
+ const el=$('engineDebug');
+ if(el)el.textContent=String(msg);
+ console.log('[Chessjust Engine]',msg);
+}
+function showEngineError(msg){
+ debug('❌ Engine error: '+msg);
+ $('status').textContent='خطأ في تشغيل Stockfish';
+ $('explain').textContent='⚠️ '+msg;
+}
+function makeEngine(){
+ return new Promise((resolve,reject)=>{
+  const url='./vendor/stockfish-18-single.js';
+  let w;
+  try{w=new Worker(url)}catch(e){reject(e);return}
+  const slot={
+   worker:w,ready:false,uci:false,best:null,
+   info:{depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()},
+   resolveReady:null
+  };
+  let settled=false;
+  const fail=e=>{
+   if(settled)return;
+   settled=true;
+   try{w.terminate()}catch{}
+   reject(e instanceof Error?e:new Error(String(e)));
+  };
+  const readyTimeout=setTimeout(()=>fail(new Error('لم يصل readyok خلال 8 ثوانٍ')),8000);
+
+  w.onerror=e=>{
+   clearTimeout(readyTimeout);
+   const msg=(e&&e.message)||'Worker error';
+   fail(new Error(msg+' — تحقق من vendor/stockfish-18-single.js و vendor/stockfish-18-single.wasm'));
+  };
+
+  w.onmessage=e=>{
+   const x=String(e.data||'');
+   if(x==='uciok'){
+    slot.uci=true;
+    applyStrength(w,Number($('strength').value));
+    w.postMessage('isready');
+    return;
+   }
+   if(x==='readyok'){
+    slot.ready=true;
+    clearTimeout(readyTimeout);
+    if(!settled){settled=true;resolve(slot)}
+    return;
+   }
+   if(x.startsWith('info')){
+    const dm=x.match(/\bdepth (\d+)/),nm=x.match(/\bnodes (\d+)/),npsm=x.match(/\bnps (\d+)/),pvm=x.match(/\spv\s(.+)$/),score=parseScore(x);
+    if(dm)slot.info.depth=+dm[1];
+    if(nm)slot.info.nodes=+nm[1];
+    if(npsm)slot.info.nps=+npsm[1];
+    if(score!==null)slot.info.score=score;
+    if(pvm)slot.info.pv=pvm[1].trim();
+    lastInfo={...lastInfo,...slot.info,pv:slot.info.pv.split(/\s+/)[0]};
+    setEval(score);setEngineDebug();
+    return;
+   }
+   if(x.startsWith('bestmove')){
+    const u=x.split(/\s+/)[1];
+    if(pending && pending.generation===searchGeneration){
+     pending.best=u&&u!=='(none)'&&u!=='0000'?{uci:u,score:slot.info.score,depth:slot.info.depth,nodes:slot.info.nodes,nps:slot.info.nps,pv:slot.info.pv}:null;
+     finishSearch(true);
+    }
+   }
+  };
+  w.postMessage('uci');
+ });
+}
+async function initPool(){
+ if(enginePool[0]?.ready)return true;
+ for(const s of enginePool){try{s.worker.terminate()}catch{}}
+ enginePool=[];engineReady=false;
+ try{
+  debug('⏳ تحميل Stockfish 18...');
+  const slot=await makeEngine();
+  enginePool=[slot];engineReady=true;
+  debug('✅ Stockfish 18 جاهز');
+  return true;
+ }catch(e){
+  engineReady=false;
+  showEngineError(e.message||e);
+  return false;
  }
- if(x.startsWith('bestmove')&&pending&&pending.generation===searchGeneration){const u=x.split(/\s+/)[1];slot.best=u&&u!=='(none)'&&u!=='0000'?{uci:u,score:slot.info.score,depth:slot.info.depth,nodes:slot.info.nodes,nps:slot.info.nps,pv:slot.info.pv}:null;pending.finished++;if(pending.stopRequested||pending.finished>=pending.expected)finishSearch()}}
-function setEval(score){if(score===null||score===undefined)return;$('eval').textContent=Math.abs(score)>=100000?`#${score>0?'∞':'−∞'}`:(score/100).toFixed(2)}
-async function initPool(){for(const s of enginePool){try{s.worker.terminate()}catch{}}enginePool=[];engineReady=false;
- const urls=['./vendor/stockfish-18-single.js'];
- for(let i=0;i<urls.length;i++){try{const s=await makeSlot(urls[i],i);enginePool.push(s)}catch(e){if(i===0){try{const s=await makeSlot('./vendor/stockfish-18-lite-single.js',0);enginePool.push(s)}catch{}}}}
- engineReady=enginePool.length>0;
 }
-function waitReady(){return engineReady?Promise.resolve(true):initPool().then(()=>engineReady)}
-function complexityBudget(g){const level=Number($('strength').value);const base=mode==='normal'?1800:mode==='beast'?2400:2200;const scaled=base+((level-250)/(3200-250))*4800;let extra=0;
+function waitReady(){return engineReady?Promise.resolve(true):initPool()}
+function complexityBudget(g){
+ const level=Number($('strength').value);
+ const base=mode==='normal'?1800:mode==='beast'?2400:2200;
+ const scaled=base+((level-250)/(3200-250))*4800;
+ let extra=0;
  if(g.in_check()||g.history().length<12)extra+=400;
- const pieces=Object.values(g.board().flat().filter(Boolean)).length;if(pieces<=10)extra+=600;
- return Math.round(Math.min(7600,Math.max(900,scaled+extra)))}
+ const pieces=g.board().flat().filter(Boolean).length;
+ if(pieces<=10)extra+=600;
+ return Math.round(Math.min(7600,Math.max(900,scaled+extra)));
+}
 function finishSearch(force=false){
  if(!pending)return;
  const p=pending;
  clearTimeout(searchTimer);
  clearTimeout(searchGraceTimer);
- const valid=enginePool.map(s=>s.best).filter(Boolean);
- if(!valid.length && !force){
-   searchGraceTimer=setTimeout(()=>finishSearch(true),800);
-   return;
+ const best=enginePool[0]?.best;
+ if(!best && !force){
+  searchGraceTimer=setTimeout(()=>finishSearch(true),1200);
+  return;
  }
  pending=null;
- for(const s of enginePool){try{s.worker.postMessage('stop')}catch{}}
- if(!valid.length){p.resolve(null);return}
- valid.sort((a,b)=>(b.depth-a.depth)||(b.score-a.score));
- const primary=valid[0];
- const same=valid.filter(x=>x.uci===primary.uci).length;
- p.resolve({chosen:primary,candidates:valid,agreement:same,info:{...lastInfo},elapsed:performance.now()-p.started});
+ try{enginePool[0]?.worker.postMessage('stop')}catch{}
+ if(!best){p.resolve(null);return}
+ p.resolve({
+  chosen:best,candidates:[best],agreement:1,
+  info:{...lastInfo},
+  elapsed:performance.now()-p.started
+ });
 }
-function searchEngine(fen,maxMs){return new Promise(async resolve=>{
- if(!(await waitReady())){resolve(null);return}
- searchGeneration++;
- const generation=searchGeneration;
- pending={resolve,finished:0,expected:enginePool.length,generation,started:performance.now(),stopRequested:false};
- clearTimeout(searchTimer);clearTimeout(searchGraceTimer);
- for(const s of enginePool){
-   s.best=null;s.info={depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()};
-   try{
-     s.worker.postMessage('stop');
-     s.worker.postMessage('ucinewgame');
-     applyStrength(s.worker,Number($('strength').value));
-     s.worker.postMessage('position fen '+fen);
-     s.worker.postMessage('go infinite');
-   }catch{}
- }
- searchTimer=setTimeout(()=>{
+function searchEngine(fen,maxMs){
+ return new Promise(async resolve=>{
+  if(!(await waitReady())){resolve(null);return}
+  searchGeneration++;
+  const generation=searchGeneration;
+  pending={resolve,generation,started:performance.now(),best:null};
+  clearTimeout(searchTimer);clearTimeout(searchGraceTimer);
+  const slot=enginePool[0];
+  slot.best=null;
+  slot.info={depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()};
+  try{
+   slot.worker.postMessage('stop');
+   slot.worker.postMessage('ucinewgame');
+   applyStrength(slot.worker,Number($('strength').value));
+   slot.worker.postMessage('position fen '+fen);
+   slot.worker.postMessage('go movetime '+maxMs);
+   debug('🔎 يبحث... '+maxMs+'ms');
+  }catch(e){
+   pending=null;showEngineError('بدء البحث: '+e.message);resolve(null);return;
+  }
+  searchTimer=setTimeout(()=>{
    if(!pending||pending.generation!==generation)return;
-   pending.stopRequested=true;
-   for(const s of enginePool){try{s.worker.postMessage('stop')}catch{}}
-   searchGraceTimer=setTimeout(()=>finishSearch(true),900);
- },maxMs);
-})}
+   try{slot.worker.postMessage('stop')}catch{}
+   searchGraceTimer=setTimeout(()=>finishSearch(true),1500);
+  },maxMs);
+ });
+}
 function attackScore(uci,g){try{const c=new Chess(g.fen()),mv=c.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});if(!mv)return-999;let s=0;if(mv.san.includes('+'))s+=7;if(mv.captured)s+=2;if(mv.san.includes('#'))s+=100;return s}catch{return 0}}
 async function engineTurn(){const st=state(),g=st.game;if(g.game_over()||g.turn()!=='b'||st.ended){busy=false;updateStatus();return}if(!(await waitReady())){busy=false;$('status').textContent='تعذر تشغيل Stockfish';return}
  const limit=complexityBudget(g);$('status').textContent=`Stockfish يبحث...`;const r=await searchEngine(g.fen(),limit);if(!r?.chosen){busy=false;updateStatus();return}

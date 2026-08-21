@@ -744,6 +744,7 @@
           poolEngineUrlUsed = path;
           sfReady = true;
           sfFailed = false;
+          setStatus('محرك التحليل جاهز.', 'ok');
           if(positions && positions.length) requestAnalysis(true);
           return;
         } catch(e) {
@@ -880,8 +881,9 @@
   async function analyzeFullGame(){
     if(!positions||positions.length<2||fullGameAnalysisRunning)return;
     if(enginePool.length===0&&!sfFailed)await initStockfish();
-    if(enginePool.length===0){setStatus('تعذّر تشغيل محرك التحليل على هذا الجهاز.','err');return;}
+    if(enginePool.length===0){setStatus('تعذّر تشغيل محرك التحليل فعليًا بعد تجربة جميع المحركات المحلية.','err');return;}
     fullGameAnalysisRunning=true;
+    setStatus('جاري تحليل المباراة باستخدام المحرك المحلي...','');
     const btn=document.getElementById('analyzeGameBtn'); if(btn)btn.disabled=true;
     const progressWrap=document.getElementById('gameProgress'); if(progressWrap)progressWrap.style.display='block';
     const nodes=500000;
@@ -894,19 +896,20 @@
       completed++; renderProgress('جاري تحليل المواضع (CP)',completed,positions.length,'gameProgressFill','gameProgressLabel');
     });
     evalsWhitePOV=evalCp;
-    let whiteTotal=0,whiteWeight=0,blackTotal=0,blackWeight=0; moveClass=[];
+    const whiteClassifications=[], blackClassifications=[]; moveClass=[];
     for(let i=0;i<verboseMoves.length;i++){
       const mover=i%2===0?'w':'b', playedUci=playedUciFor(verboseMoves[i]);
       const beforeR={cp: null, whiteCp: evalCp[i], mate:null, valid:true};
       const afterR={cp: null, whiteCp: evalCp[i+1], mate:null, valid:true};
       const c=classifyOneMove(beforeR,afterR,mover,playedUci,bestUcis[i],verboseMoves[i],positions[i],positions[i+1],verboseMoves[i+1]);
       moveClass[i]=c;
-      if(typeof c.moveAcc==='number'){
-        if(mover==='w'){whiteTotal+=c.moveAcc;whiteWeight++;}else{blackTotal+=c.moveAcc;blackWeight++;}
-      }
+      if(c && typeof c.moveAcc==='number') (mover==='w'?whiteClassifications:blackClassifications).push(c);
     }
     if(progressWrap)progressWrap.style.display='none'; if(btn)btn.disabled=false; fullGameAnalysisRunning=false;
-    renderAccuracySummary(whiteWeight?whiteTotal/whiteWeight:null,blackWeight?blackTotal/blackWeight:null);
+    const whiteAcc=whiteClassifications.length?AnalysisEngine.gameAccuracy(whiteClassifications,'w'):null;
+    const blackAcc=blackClassifications.length?AnalysisEngine.gameAccuracy(blackClassifications,'b'):null;
+    setStatus('اكتمل تحليل المباراة.', 'ok');
+    renderAccuracySummary(whiteAcc,blackAcc);
     renderCpQuality(evalCp); renderEvalGraph(evalCp); renderMovesList(); requestAnalysis(true);
   }
   function renderCpQuality(evals){

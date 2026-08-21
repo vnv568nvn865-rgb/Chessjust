@@ -98,19 +98,14 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .g-meta{font-size:11px;color:var(--ink-dim);}
 .badge{padding:2px 7px;border-radius:9px;font-size:11px;font-weight:bold;color:#fff;}
 .bw{background:var(--best);}.bl{background:var(--blunder);}.bd{background:var(--inaccuracy);}
-.selected-game{display:none;background:var(--panel2);border:1px solid var(--gold);border-radius:8px;padding:10px;margin-top:8px;}
-.selected-game.show{display:block;}
-.selected-game .sg-title{font-weight:bold;font-size:13px;margin-bottom:3px;}
-.selected-game .sg-meta{font-size:11px;color:var(--ink-dim);line-height:1.6;}
-.selected-game .sg-actions{display:flex;gap:7px;margin-top:8px;}
-.selected-game .sg-actions .btn{flex:1;}
-.game-row.selected{border-color:var(--gold);box-shadow:0 0 0 1px rgba(201,162,39,.25) inset;}
-
 
 /* ── PROGRESS ── */
 .prog-wrap{margin:8px 0;display:none;}
 .prog-track{height:7px;border-radius:4px;background:var(--panel2);overflow:hidden;border:1px solid var(--line);}
 .prog-fill{height:100%;background:var(--gold);width:0;transition:width .15s;}
+.live-status{font-size:11px;color:var(--ink-dim);padding:7px 2px 2px;text-align:center;min-height:24px;}
+.live-status strong{color:var(--ink);}
+.live-first{display:inline-flex;align-items:center;gap:5px;color:var(--best);}
 /* stats bar */
 .stats-bar{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--ink-dim);
   font-family:var(--fm);justify-content:center;}
@@ -131,7 +126,7 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 
 /* ── MOVES ── */
 .mv-wrap{max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
-.mv-grid{display:grid;grid-template-columns:26px 1fr 1fr;gap:2px 5px;font-family:var(--fm);font-size:13px;}
+.mv-grid{display:grid;grid-template-columns:32px 1fr 1fr;gap:4px 7px;font-family:var(--fm);font-size:14px;}
 .mv-num{color:var(--ink-dim);}
 .mv-cell{padding:3px 6px;border-radius:4px;cursor:pointer;display:flex;
   align-items:center;justify-content:space-between;gap:4px;}
@@ -160,8 +155,6 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .bad-item{font-size:12px;padding:2px 0;}
 .miss-box{background:rgba(217,182,78,.07);border:1px solid rgba(217,182,78,.25);
   border-radius:7px;padding:9px;margin-top:8px;}
-.coach-acc-pair{display:flex;gap:12px;align-items:center;}
-.coach-acc{text-align:center;min-width:74px;}
 .miss-lbl{font-size:10px;color:var(--inaccuracy);margin-bottom:3px;}
 
 /* ── MOMENTS ── */
@@ -174,27 +167,20 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 
 /* ── BOARD ── */
 .board-wrap{display:flex;flex-direction:column;align-items:center;padding:10px;}
-.board-ctrl{display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;}
-.board-ctrl .btn-sm{min-width:58px;min-height:48px;padding:11px 18px;font-size:17px;}
+.board-ctrl{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;}
 .board-outer{width:100%;max-width:380px;}
 .chess-board{width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);
-  border:3px solid #3b2618;border-radius:2px;overflow:hidden;
-  box-shadow:0 10px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08) inset;}
+  border:2px solid var(--line);border-radius:3px;overflow:hidden;
+  box-shadow:0 6px 18px rgba(0,0,0,.4);}
 .sq{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
   position:relative;cursor:pointer;}
-.sq.light{background:#e8d4ab;}.sq.dark{background:#7a4f31;}
-.sq::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(0,0,0,.05));}
-.sq img{width:91%;height:91%;object-fit:contain;pointer-events:none;
-  filter:drop-shadow(0 3px 2px rgba(0,0,0,.5));z-index:1;}
-.sq.piece-fallback{font-family:"Noto Sans Symbols 2","Segoe UI Symbol","DejaVu Sans",serif;font-weight:700;}
-.sq.piece-fallback.piece-white{font-size:clamp(34px,9vw,58px);color:#fff8e8;-webkit-text-stroke:1.8px #3b2a1d;text-shadow:0 3px 3px rgba(0,0,0,.55);}
-.sq.piece-fallback.piece-black{font-size:clamp(34px,9vw,58px);color:#1a1510;-webkit-text-stroke:1.4px #e8d4ab;text-shadow:0 2px 3px rgba(0,0,0,.45);}
+.sq.light{background:var(--sq-light);}.sq.dark{background:var(--sq-dark);}
+.sq img{width:82%;height:82%;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
 .sq.from-hl{background:rgba(201,162,39,.4)!important;}
 .sq.to-hl{background:rgba(201,162,39,.6)!important;}
 .sq.best-from{background:rgba(55,198,224,.4)!important;}
 .sq.best-to{background:rgba(55,198,224,.6)!important;}
-.sq.quality-from,.sq.quality-to{box-shadow:inset 0 0 0 4px var(--quality,#c9a227)!important;}
-.sq.quality-from{filter:brightness(1.08);}.sq.quality-to{filter:brightness(1.18);}
 .coord{position:absolute;font-size:8px;opacity:.55;font-family:var(--fm);pointer-events:none;}
 .coord.file{bottom:2px;right:2px;}.coord.rank{top:2px;left:2px;}
 .eval-row{display:flex;justify-content:space-between;align-items:center;
@@ -269,13 +255,9 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
       <button class="btn btn-sm" onclick="fetchGames()">جلب</button>
     </div>
     <div id="games-list"><div class="hint">أدخل اسمك لجلب آخر 10 مباريات</div></div>
-    <div id="selected-game" class="selected-game">
-      <div class="sg-title" id="sg-title">لم تختر مباراة</div>
-      <div class="sg-meta" id="sg-meta"></div>
-      <div class="sg-actions">
-        <button class="btn" id="sg-start" disabled>▶ بدء التحليل</button>
-        <button class="btn btn-out" id="sg-cancel" type="button">إلغاء</button>
-      </div>
+    <div id="selected-game" class="card" style="display:none;margin:8px 0 0;padding:10px;background:rgba(0,0,0,.08)">
+      <div id="selected-game-info" class="hint"></div>
+      <button id="startAnalysisBtn" class="btn" style="width:100%;margin-top:8px" onclick="startSelectedGame()">▶️ بدء التحليل</button>
     </div>
   </div>
 
@@ -304,9 +286,9 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
         <div style="font-size:14px;font-weight:bold" id="an-title">تحليل</div>
         <div style="font-size:11px;color:var(--ink-dim);margin-top:2px" id="an-sub"></div>
       </div>
-      <div class="coach-acc-pair">
-        <div class="coach-acc"><div class="acc-num" id="acc-val">—</div><div class="acc-lbl" id="acc-lbl">دقة اللاعب</div></div>
-        <div class="coach-acc"><div class="acc-num" id="opp-acc-val">—</div><div class="acc-lbl" id="opp-acc-lbl">دقة الخصم</div></div>
+      <div style="text-align:center">
+        <div class="acc-num" id="acc-val">—</div>
+        <div class="acc-lbl" id="acc-lbl">الدقة %</div>
       </div>
     </div>
     <div class="sc-grid" id="sc-grid" style="display:none"></div>
@@ -321,6 +303,7 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
     </h2>
     <div class="prog-wrap" id="prog-wrap">
       <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+      <div class="live-status" id="live-status">⏳ تجهيز أول موضع للتحليل...</div>
       <div class="stats-bar" id="stats-bar">
         <span>الموضع: <b id="sb-pos">—</b></span>
         <span>عمق: <b id="sb-depth">—</b></span>
@@ -446,8 +429,7 @@ const S = {
   verboseMoves:   [],   // نتائج chess.js.move() لكل نقلة
   sanMoves:       [],
   engineResults:  [],   // نتيجة Stockfish لكل FEN
-  whitePcts:      [],   // win% مشتق من CP فقط (للعرض البياني)
-  whiteCp:        [],   // تقييم CP من منظور الأبيض
+  whitePcts:      [],   // win% للأبيض لكل FEN
   moveCls:        [],   // تصنيف كل نقلة
   playerIsWhite:  true,
   board: { idx:0, flipped:false, bestSqs:null, selSq:null, tryMode:false }
@@ -478,23 +460,13 @@ async function init() {
   S.coach = new ChessCoach();
   S.fens  = ['rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'];
   drawBoard(S.fens[0]);
-
-  // لا نوقف واجهة Coach بانتظار Stockfish. الواجهة والبحث والأزرار
-  // يجب أن تعمل فور تحميل الصفحة، بينما يتهيأ المحرك في الخلفية.
-  initEngine().catch(e => {
-    S.ready = false;
-    setEng('error', '❌ تعذر تهيئة المحرك');
-    const detail = document.getElementById('eng-detail');
-    if (detail) detail.textContent = e?.message || 'خطأ غير معروف في المحرك';
-  });
-
+  await initEngine();
   // PGN من index.html
   const pp = sessionStorage.getItem('cj_pgn');
   if (pp) {
     sessionStorage.removeItem('cj_pgn');
     document.getElementById('inp-pgn').value = pp;
-    if (S.ready) setTimeout(runPGN, 300);
-    else { const iv = setInterval(() => { if (S.ready) { clearInterval(iv); runPGN(); } }, 400); }
+    // لا نبدأ تحليل مباراة Chess.com تلقائيًا؛ المستخدم يضغط زر بدء التحليل.
   }
   loadPatterns();
 }
@@ -632,7 +604,7 @@ function renderGames(el) {
     const opp = iw ? g.black : g.white;
     const r   = RES[me.result] || { l: me.result, c:'bd' };
     const d   = new Date((g.end_time||0)*1000);
-    return `<div class="game-row ${i===S.selectedGameIndex?'selected':''}" onclick="loadGame(${i})">
+    return `<div class="game-row" onclick="selectGame(${i})">
       <div><div class="g-opp">ضد ${opp.username} (${opp.rating||'?'})</div>
       <div class="g-meta">${iw?'⬜':'⬛'} ${g.time_class||''} · ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</div></div>
       <span class="badge ${r.c}">${r.l}</span></div>`;
@@ -642,46 +614,40 @@ function renderGames(el) {
 /* ════════════════════════════════════════
    LOAD GAME
 ════════════════════════════════════════ */
-function loadGame(idx) {
+function selectGame(idx) {
   const g = S.games[idx]; if (!g) return;
-  const iw = (g.white.username||'').toLowerCase() === S.username.toLowerCase();
-  const moves = parsePGN(g.pgn||'');
-  if (!moves.sans.length) { alert('لم يتم التعرف على النقلات'); return; }
   S.selectedGameIndex = idx;
-  renderGames(document.getElementById('games-list'));
-  const card = document.getElementById('selected-game');
-  const title = document.getElementById('sg-title');
-  const meta = document.getElementById('sg-meta');
-  const start = document.getElementById('sg-start');
-  const cancel = document.getElementById('sg-cancel');
-  title.textContent = `ضد ${iw ? g.black.username : g.white.username}`;
-  meta.textContent = `${g.time_class||'شطرنج'} · ${iw ? 'أبيض' : 'أسود'} · ${moves.sans.length} نقلة · جاهزة للتحليل`;
-  card.classList.add('show');
-  start.disabled = false;
-  start.onclick = () => startSelectedGame();
-  cancel.onclick = () => { S.selectedGameIndex = -1; card.classList.remove('show'); renderGames(document.getElementById('games-list')); };
+  const iw = (g.white.username||'').toLowerCase() === S.username.toLowerCase();
+  const me = iw ? g.white : g.black;
+  const opp = iw ? g.black : g.white;
+  const box = document.getElementById('selected-game');
+  const info = document.getElementById('selected-game-info');
+  if (box && info) {
+    box.style.display = 'block';
+    info.innerHTML = `<strong>${escapeHtml(me.username || S.username)}</strong> ضد <strong>${escapeHtml(opp.username || '?')}</strong> · ${iw ? 'أبيض ⬜' : 'أسود ⬛'} · ${escapeHtml(g.time_class || '')}`;
+  }
+  document.querySelectorAll('.game-row').forEach((el,i)=>el.classList.toggle('selected', i===idx));
 }
 
 async function startSelectedGame() {
-  const g = S.games[S.selectedGameIndex];
-  if (!g) return;
+  const idx = S.selectedGameIndex;
+  const g = S.games[idx];
+  if (!g) { alert('اختر مباراة أولاً'); return; }
   const iw = (g.white.username||'').toLowerCase() === S.username.toLowerCase();
   const moves = parsePGN(g.pgn||'');
   if (!moves.sans.length) { alert('لم يتم التعرف على النقلات'); return; }
-  const start = document.getElementById('sg-start');
-  if (start) { start.disabled = true; start.textContent = '⏳ جاري بدء التحليل...'; }
-  enableTabs();
-  showTab('an');
+  const btn = document.getElementById('startAnalysisBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري التحليل...'; }
   try {
+    enableTabs(); showTab('an');
     await analyzeGame(moves, iw, {
       title: `ضد ${iw ? g.black.username : g.white.username}`,
       sub:   `${g.time_class||''} · ${iw ? 'أبيض' : 'أسود'}`
     });
   } finally {
-    if (start) { start.disabled = false; start.textContent = '▶ بدء التحليل'; }
+    if (btn) { btn.disabled = false; btn.textContent = '▶️ بدء التحليل'; }
   }
 }
-
 async function runPGN() {
   const pgn = document.getElementById('inp-pgn').value.trim();
   if (!pgn) return;
@@ -755,15 +721,43 @@ function buildFens(sans) {
 
    قبل: 2N استعلام متتالي = 140 لـ70 نقلة
    بعد: N+1 استعلام متوازٍ = 71 لـ70 نقلة
-   النتيجة: تسريع 40× مع تقييم CP موحد
+   النتيجة: تسريع 40× مع دقة أعلى (WDL)
 ════════════════════════════════════════ */
-function terminalWhiteCp(fen){
-  try{
-    const c = new Chess(fen);
-    if(c.in_checkmate()) return c.turn()==='w' ? -10000 : 10000;
-    if(c.in_stalemate() || c.in_draw() || c.in_threefold_repetition() || c.insufficient_material()) return 0;
-  }catch(_){}
-  return null;
+function renderLiveMoves() {
+  const grid = document.getElementById('mv-grid');
+  if (!grid || !S.sanMoves?.length || !S.engineResults?.length) return;
+
+  const partial = [];
+  for (let i = 0; i < S.sanMoves.length; i++) {
+    if (!S.engineResults[i] || !S.engineResults[i + 1]) continue;
+    const mover = i % 2 === 0 ? 'w' : 'b';
+    const mv = S.verboseMoves[i];
+    const playedUci = mv ? (mv.from + mv.to + (mv.promotion || '')) : null;
+    const wpB = AnalysisEngine.resultToWhiteWinPct(S.engineResults[i], S.fens[i]);
+    const wpA = AnalysisEngine.resultToWhiteWinPct(S.engineResults[i + 1], S.fens[i + 1]);
+    const c = AnalysisEngine.classifyMove(
+      wpB, wpA, mover, playedUci, S.engineResults[i]?.bestmove || null, mv
+    );
+    c.idx=i; c.san=S.sanMoves[i]; c.moveNumber=Math.floor(i/2)+1;
+    partial.push(c);
+  }
+
+  grid.innerHTML = '';
+  partial.forEach((c, n) => {
+    const isW = c.idx % 2 === 0;
+    if (isW) {
+      const num = document.createElement('span');
+      num.className='mv-num'; num.textContent=c.moveNumber+'.'; grid.appendChild(num);
+    }
+    const cell=document.createElement('span');
+    cell.className='mv-cell'; cell.id='mc-'+c.idx;
+    cell.style.borderInlineStart='3px solid '+c.color;
+    cell.innerHTML=`<span>${c.san}</span><span class="mv-ic ${c.type}" title="${c.labelAr}">${MOVE_ICON[c.type]||''} <small style="opacity:.75">${Math.round(c.moveAcc)}%</small></span>`;
+    cell.onclick=()=>selectMove(c.idx); grid.appendChild(cell);
+  });
+  if (!partial.length) {
+    grid.innerHTML='<div class="hint" style="grid-column:1/-1"><span class="spin"></span> المحرك بدأ التحليل — بانتظار أول موضع...</div>';
+  }
 }
 
 async function analyzeGame(parsedMoves, playerIsWhite, meta) {
@@ -778,7 +772,6 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   S.verboseMoves  = [];
   S.engineResults = [];
   S.whitePcts     = [];
-  S.whiteCp       = [];
   S.moveCls       = [];
   S.board         = { idx:0, flipped:S.board.flipped, bestSqs:null, selSq:null, tryMode:false };
 
@@ -787,8 +780,6 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   document.getElementById('an-title').textContent = meta.title;
   document.getElementById('an-sub').textContent   = meta.sub;
   document.getElementById('acc-val').textContent  = '—';
-  document.getElementById('opp-acc-val').textContent = '—';
-  document.getElementById('opp-acc-lbl').textContent = 'دقة الخصم';
   document.getElementById('acc-lbl').textContent  = 'جاري الحساب...';
   document.getElementById('sc-grid').style.display = 'none';
   document.getElementById('sc-grid').innerHTML    = '';
@@ -807,6 +798,12 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   const pw = document.getElementById('prog-wrap');
   pw.style.display = 'block';
   document.getElementById('prog-fill').style.width = '0';
+  document.getElementById('prog-txt').textContent = '0%';
+  document.getElementById('sb-pos').textContent = '0/'+Math.max(0, sans.length+1);
+  document.getElementById('sb-depth').textContent = '—';
+  document.getElementById('sb-nps').textContent = '—';
+  document.getElementById('sb-eta').textContent = '...';
+  document.getElementById('live-status').innerHTML = '<span class="spin"></span> تجهيز أول موضع للتحليل...';
 
   // ─ بناء N+1 مواضع ─
   S.fens = buildFens(sans);
@@ -823,60 +820,51 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   S.engineResults = new Array(S.fens.length).fill(null);
   let completed = 0;
   const startTime = Date.now();
-  const queryIndices = [];
-  for(let i=0;i<S.fens.length;i++){
-    const t = terminalWhiteCp(S.fens[i]);
-    if(t !== null) S.engineResults[i] = {cp:null, whiteCp:t, mate:null, bestmove:null, depth:0, nodes:0, time:0, terminal:true, valid:true};
-    else queryIndices.push(i);
-  }
-  completed = S.fens.length - queryIndices.length;
-  if(completed) renderProgress('جاري تحليل المواضع', completed, S.fens.length, 'prog-fill', 'prog-txt');
-  document.getElementById('prog-txt').textContent = `جاري تشغيل المحرك — 0/${S.fens.length}`;
-  document.getElementById('sb-pos').textContent = `0/${S.fens.length}`;
-  document.getElementById('sb-depth').textContent = '—';
-  document.getElementById('sb-nps').textContent = '—';
-  document.getElementById('sb-eta').textContent = 'حساب...';
-  await S.engine.analyzeBulk(queryIndices.map(i=>S.fens[i]), undefined, (localIdx, result) => {
-    const idx = queryIndices[localIdx];
+
+  await S.engine.analyzeBulk(S.fens, undefined, (idx, result) => {
     S.engineResults[idx] = result;
     completed++;
+
+    // تحديث حي: لا ننتظر انتهاء المباراة حتى يرى المستخدم أن التحليل يعمل.
+    const pct     = Math.round((completed / S.fens.length) * 100);
     const elapsed = Date.now() - startTime;
-    document.getElementById('prog-fill').style.width = Math.round((completed/S.fens.length)*100)+'%';
-    document.getElementById('prog-txt').textContent = `${completed}/${S.fens.length}`;
-    document.getElementById('sb-pos').textContent = `${completed}/${S.fens.length}`;
-    document.getElementById('sb-depth').textContent = result?.depth || '—';
-    document.getElementById('sb-nps').textContent = AnalysisEngine.formatNPS(result?.nodes, Math.max(200, result?.time || elapsed));
-    document.getElementById('sb-eta').textContent = AnalysisEngine.formatETA(completed,S.fens.length,elapsed);
-  }, (localIdx, info) => {
-    const elapsed = Date.now() - startTime;
-    document.getElementById('sb-depth').textContent = info?.depth || '—';
-    document.getElementById('sb-nps').textContent = AnalysisEngine.formatNPS(info?.nodes, info?.time || elapsed);
-    document.getElementById('sb-eta').textContent = AnalysisEngine.formatETA(completed,S.fens.length,elapsed);
+    document.getElementById('prog-fill').style.width = pct + '%';
+    document.getElementById('prog-txt').textContent  = `${pct}% · ${completed}/${S.fens.length}`;
+    document.getElementById('sb-pos').textContent    = `${completed}/${S.fens.length}`;
+    document.getElementById('sb-depth').textContent  = result?.depth || '—';
+    document.getElementById('sb-nps').textContent    =
+      AnalysisEngine.formatNPS(result?.nodes, elapsed / completed);
+    document.getElementById('sb-eta').textContent    =
+      AnalysisEngine.formatETA(completed, S.fens.length, elapsed);
+
+    const live = document.getElementById('live-status');
+    if (completed === 1) {
+      live.innerHTML = '<span class="live-first">✓ ظهرت أول نتيجة — التحليل مستمر...</span>';
+    } else {
+      live.innerHTML = `<strong>يعمل الآن:</strong> تم تحليل ${completed} من ${S.fens.length} موضع · تظهر النقلات تدريجيًا`;
+    }
+    renderLiveMoves();
   });
 
   pw.style.display = 'none';
+  document.getElementById('live-status').innerHTML = '<span class="live-first">✓ اكتمل تحليل جميع المواضع</span>';
 
   // ─ تحويل إلى white win% ─
-  S.whiteCp = S.engineResults.map((r, i) => AnalysisEngine.resultToWhiteCp(r, S.fens[i]));
-  S.whitePcts = S.whiteCp.map(cp => cp === null ? null : AnalysisEngine.cpToWinPct(cp));
+  S.whitePcts = S.engineResults.map((r, i) =>
+    AnalysisEngine.resultToWhiteWinPct(r, S.fens[i]));
 
-  // ─ تصنيف النقلات: CP فقط، بدون الاحتمالات القديمة أو قيم fallback ─
+  // ─ تصنيف النقلات ─
   S.moveCls = [];
   for (let i = 0; i < sans.length; i++) {
     const mover = i % 2 === 0 ? 'w' : 'b';
     const mv    = verbose[i];
     const playedUci = mv ? (mv.from + mv.to + (mv.promotion || '')) : null;
-    const cls = AnalysisEngine.classifyMove({
-      beforeResult: S.engineResults[i],
-      afterResult: S.engineResults[i + 1],
-      mover,
-      playedUci,
-      bestUci: S.engineResults[i]?.bestmove || null,
-      verboseMove: mv,
-      nextVerboseMove: verbose[i + 1] || null,
-      fenBefore: S.fens[i],
-      fenAfter: S.fens[i + 1]
-    });
+    const cls = AnalysisEngine.classifyMove(
+      S.whitePcts[i], S.whitePcts[i + 1],
+      mover, playedUci,
+      S.engineResults[i]?.bestmove || null,
+      mv
+    );
     cls.idx        = i;
     cls.san        = sans[i];
     cls.moveNumber = Math.floor(i / 2) + 1;
@@ -884,27 +872,23 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
     cls.bestmove   = S.engineResults[i]?.bestmove || null;
     cls.evalBefore = AnalysisEngine.evalLabel(S.engineResults[i],    S.fens[i]);
     cls.evalAfter  = AnalysisEngine.evalLabel(S.engineResults[i+1],  S.fens[i+1]);
-    cls.cpBefore  = AnalysisEngine.resultToWhiteCp(S.engineResults[i], S.fens[i]);
-    cls.cpAfter   = AnalysisEngine.resultToWhiteCp(S.engineResults[i+1], S.fens[i+1]);
+    cls.wdlUsed    = !!(S.engineResults[i]?.wdl);
     S.moveCls.push(cls);
   }
 
   // ─ رسم النقلات ─
   renderMoveList(mvGrid);
 
-  // ─ دقة المباراة (نقلات اللاعب فقط) ─
+  // ─ دقة كلا اللاعبين: نفس خوارزمية CP→win-loss في الوضع العادي والمدرب ─
+  const whiteAcc = AnalysisEngine.gameAccuracy(S.moveCls, S.engineResults, 'w');
+  const blackAcc = AnalysisEngine.gameAccuracy(S.moveCls, S.engineResults, 'b');
   const playerMover = playerIsWhite ? 'w' : 'b';
-  const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, playerMover);
-  const oppMover = playerMover === 'w' ? 'b' : 'w';
-  const oppAcc = AnalysisEngine.gameAccuracy(S.moveCls, oppMover);
+  const playerAcc = playerMover === 'w' ? whiteAcc : blackAcc;
   const playerMoveCount = S.moveCls.filter(c => c.mover === playerMover).length;
-  const oppMoveCount = S.moveCls.filter(c => c.mover === oppMover).length;
-  const playerName = playerIsWhite ? 'الأبيض' : 'الأسود';
-  const oppName = playerIsWhite ? 'الأسود' : 'الأبيض';
-  document.getElementById('acc-val').textContent = playerMoveCount ? Math.round(gameAcc) + '%' : '—';
-  document.getElementById('acc-lbl').textContent = playerMoveCount ? `دقة ${playerName} (${playerMoveCount} نقلة)` : `دقة ${playerName}`;
-  document.getElementById('opp-acc-val').textContent = oppMoveCount ? Math.round(oppAcc) + '%' : '—';
-  document.getElementById('opp-acc-lbl').textContent = oppMoveCount ? `دقة ${oppName} (${oppMoveCount} نقلة)` : `دقة ${oppName}`;
+  const accVal = document.getElementById('acc-val');
+  const accLbl = document.getElementById('acc-lbl');
+  if (accVal) accVal.innerHTML = `<span style="font-size:18px">⬜ ${Math.round(whiteAcc)}%</span><br><span style="font-size:18px">⬛ ${Math.round(blackAcc)}%</span>`;
+  if (accLbl) accLbl.textContent = `دقة الأبيض / الأسود · ${playerMoveCount} نقلة للاعب`;
 
   // ─ إحصاءات ─
   renderStats();
@@ -922,18 +906,25 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   drawBoard(S.fens[0]);
 
   // ─ تسجيل الأخطاء ─
+  // إصلاح: gameAcc كان مستخدمًا دون تعريف، وكان هذا يرمي ReferenceError
+  // بعد اكتمال التحليل مباشرة، فيمنع WebView من إظهار النتائج.
+  const gameAcc = playerAcc;
   if (S.tracker) {
     const errMoves = S.moveCls.filter(c => c.isPlayer).map(c => ({
       isPlayerMove: true,
-      cpLoss: c.cpLoss ?? 0,
+      cpLoss: c.loss * 3,
       classification: c,
       moveNumber: c.moveNumber,
       move: c.san,
       tactical: c.type === 'blunder' ? ['HANGING_PIECE'] :
                 c.missedOpportunity ? ['MISSED_TACTIC'] : []
     }));
-    S.tracker.recordGame(Date.now()+'', errMoves, Math.round(gameAcc));
-    loadPatterns();
+    try {
+      S.tracker.recordGame(Date.now()+'', errMoves, Math.round(gameAcc));
+      loadPatterns();
+    } catch (e) {
+      console.warn('ErrorTracker failed after analysis:', e);
+    }
   }
 }
 
@@ -956,7 +947,7 @@ function renderMoveList(grid) {
     cell.id = 'mc-' + i;
     cell.onclick = () => selectMove(i);
     const ic = MOVE_ICON[c.type] || '';
-    cell.innerHTML = `<span>${c.san}</span><span class="mv-ic ${c.type}" title="${c.labelAr}">${ic}</span>`;
+    cell.innerHTML = `<span>${c.san}</span><span class="mv-ic ${c.type}" title="${c.labelAr}">${ic} <small style="opacity:.75">${Math.round(c.moveAcc)}%</small></span>`;
     grid.appendChild(cell);
     // خانة فارغة إذا الأسود أول ما يلعب (نادر)
     if (!isW && i === 0) {
@@ -978,7 +969,7 @@ function selectMove(i) {
 
 function showExplanation(i) {
   const c = S.moveCls[i]; if (!c) return;
-  const isBad   = typeof c.cpLoss === 'number' && c.cpLoss >= 50;
+  const isBad   = c.loss >= 10;
   const bmText  = c.bestmove ? S.coach?.formatMove(c.bestmove) : null;
 
   // شرح موسّع بناءً على الوضعية الفعلية
@@ -986,7 +977,7 @@ function showExplanation(i) {
   const posAfter  = S.coach?.parsePosition(S.fens[i+1]);
   const expl = (posBefore && posAfter && S.coach)
     ? S.coach.explainMoveDifference(posBefore, posAfter, null,
-        c.bestmove, c.cpLoss ?? 0, { bestMove: c.bestmove, score: null })
+        c.bestmove, c.loss * 3, { bestMove: c.bestmove, score: null })
     : { reasons:[], whyBad:[] };
 
   document.getElementById('expl-wrap').innerHTML = `
@@ -995,11 +986,11 @@ function showExplanation(i) {
         ${c.san}${c.symbol} · ${c.labelAr}
       </div>
       <div class="expl-sec">
-        <div class="expl-sec-t">تقييم Stockfish [CP]</div>
+        <div class="expl-sec-t">تقييم Stockfish ${c.wdlUsed ? '[WDL✓]' : '[cp fallback]'}</div>
         <div class="expl-txt">
           قبل: <strong>${c.evalBefore}</strong>
           → بعد: <strong>${c.evalAfter}</strong>
-          · خسارة: <strong>${typeof c.cpLoss === 'number' ? c.cpLoss + ' cp' : '—'}</strong>
+          · خسارة: <strong>${c.loss.toFixed(1)}%</strong>
         </div>
       </div>
       ${expl.reasons.length ? `<div class="expl-sec">
@@ -1012,7 +1003,7 @@ function showExplanation(i) {
       </div>` : ''}
       ${c.missedOpportunity ? `<div class="miss-box">
         <div class="miss-lbl">⚡ تضييع فرصة</div>
-        <div style="font-size:12px">كنت تملك ميزة حاسمة (${S.whitePcts[i] != null ? S.whitePcts[i].toFixed(0) : '—'}% تقدير) لكن النقلة أضاعتها</div>
+        <div style="font-size:12px">كنت تملك ميزة حاسمة (${S.whitePcts[i]?.toFixed(0)}% فوز) لكن النقلة أضاعتها</div>
       </div>` : ''}
       ${isBad && expl.whyBad?.length ? `<div class="bad-box">
         <div class="bad-lbl">❓ لماذا كانت سيئة</div>
@@ -1051,7 +1042,7 @@ function renderStats() {
 function renderKeyMoments() {
   const moments = S.moveCls
     .filter(c => c.isPlayer && (c.type === 'blunder' || c.type === 'mistake' || c.missedOpportunity))
-    .sort((a, b) => (b.cpLoss || 0) - (a.cpLoss || 0))
+    .sort((a, b) => b.loss - a.loss)
     .slice(0, 5);
   if (!moments.length) return;
   document.getElementById('moments-card').style.display = 'block';
@@ -1060,7 +1051,7 @@ function renderKeyMoments() {
       <div class="moment-n">نقلة ${c.moveNumber}</div>
       <div>
         <div class="moment-m" style="color:${c.color}">${c.san} ${c.symbol}</div>
-        <div class="moment-w">${c.labelAr} · فقدان ${typeof c.cpLoss === 'number' ? c.cpLoss + ' cp' : '—'}</div>
+        <div class="moment-w">${c.labelAr} · فقدان ${c.loss.toFixed(1)}%</div>
       </div>
     </div>`).join('');
 }
@@ -1137,7 +1128,7 @@ function drawBoard(fen) {
         img.onerror = () => {
           const sp = document.createElement('span');
           sp.textContent = UNICODE[p] || p;
-          sp.className = 'piece-fallback ' + (p===p.toUpperCase()?'piece-white':'piece-black');
+          sp.style.cssText = `font-size:min(6vw,34px);color:${p===p.toUpperCase()?'#fbf4e4':'#14100a'}`;
           img.replaceWith(sp);
         };
         div.appendChild(img);
@@ -1149,13 +1140,11 @@ function drawBoard(fen) {
       }
       if (S.board.idx > 0 && S.moveCls[S.board.idx - 1]) {
         const vm = S.verboseMoves[S.board.idx - 1];
-        const quality = S.moveCls[S.board.idx - 1];
         if (vm?.from && ChessMini) {
           const fc = vm.from.charCodeAt(0)-97, fr = parseInt(vm.from[1])-1;
           const tc = vm.to.charCodeAt(0)-97,   tr = parseInt(vm.to[1])-1;
-          if (sq === fc+fr*8) div.classList.add('from-hl','quality-from');
-          if (sq === tc+tr*8) div.classList.add('to-hl','quality-to');
-          if (quality?.color) div.style.setProperty('--quality', quality.color);
+          if (sq === fc+fr*8) div.classList.add('from-hl');
+          if (sq === tc+tr*8) div.classList.add('to-hl');
         }
       }
       div.onclick = () => handleSqClick(sq, fen);
@@ -1177,7 +1166,7 @@ function openBoard(fenIdx) {
   if (c) {
     document.getElementById('board-expl').innerHTML =
       `<strong style="color:${c.color}">${c.san}${c.symbol} — ${c.labelAr}</strong><br>
-       خسارة: ${typeof c.cpLoss === 'number' ? c.cpLoss + ' cp' : '—'}`;
+       خسارة: ${c.loss.toFixed(1)}% | ${c.wdlUsed ? 'WDL✓' : 'cp'}`;
   }
   showTab('board');
 }
@@ -1314,8 +1303,9 @@ window.addEventListener('popstate', (e) => {
     if (tab === 'board' && S.fens.length) setTimeout(() => drawBoard(S.fens[S.board.idx]), 10);
     if (tab === 'err') loadPatterns();
   } else {
-    // لا يوجد تاريخ داخلي — الرجوع للصفحة الرئيسية
-    window.location.href = 'index.html';
+    // نحن في الحالة الجذرية. لا نغيّر location هنا؛ Android/WebView يمكنه
+    // التعامل مع زر الرجوع الطبيعي بدل إعادة تحميل index بشكل غير متوقع.
+    return;
   }
 });
 function enableTabs() {
@@ -1324,15 +1314,12 @@ function enableTabs() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // لا ننتظر المحرك هنا. انتظار تحميل Stockfish كان يجعل الواجهة تبدو
-  // متوقفة على بعض إصدارات Android/WebView. كل handlers تُربط فورًا.
-  try {
-    init();
-  } catch (e) {
-    console.error('Coach init failed:', e);
-    const el = document.getElementById('eng-detail');
-    if (el) el.textContent = e?.message || 'تعذر تحميل واجهة المدرب';
-  }
+  // buildLevelUI يحتاج AnalysisEngine — تأكد تحميله أولاً
+  const tryBuild = () => {
+    if (typeof AnalysisEngine !== 'undefined') { buildLevelUI(); init(); }
+    else setTimeout(tryBuild, 50);
+  };
+  tryBuild();
 });
 </script>
 </body>

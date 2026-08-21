@@ -1,16 +1,16 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Chessjust — العب</title>
-<style>:root{--bg:#0d1117;--panel:#151b24;--line:#2b3542;--ink:#f1f4f7;--dim:#9da9b6;--gold:#d9b35b;--green:#65b27a;--red:#d05a5a}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% 0,#1a2230 0,#0d1117 45%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}.top{max-width:900px;margin:auto;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:10px}.top h1{font-size:20px;margin:0}.top small{color:var(--dim)}.nav{display:flex;gap:8px}.nav a{color:var(--ink);text-decoration:none;border:1px solid var(--line);padding:8px 11px;border-radius:9px;font-size:12px}.wrap{max-width:900px;margin:auto;padding:0 14px 30px}.mode{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 14px}.mode button,.actions button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px;font-weight:700}.mode button.active{border-color:var(--gold);color:var(--gold)}.game{display:grid;grid-template-columns:minmax(280px,560px) 1fr;gap:14px;align-items:start}.board{width:min(92vw,560px);aspect-ratio:1;margin:auto;display:grid;grid-template-columns:repeat(8,1fr);border:5px solid #202832;border-radius:6px;overflow:hidden;box-shadow:0 14px 40px #0008}.sq{display:flex;align-items:center;justify-content:center;position:relative;user-select:none}.sq.light{background:#d9c7a1}.sq.dark{background:#8a6b4d}.sq.sel{outline:4px solid #5da4d6;outline-offset:-4px}.sq.last{box-shadow:inset 0 0 0 4px #8fc46a}.sq img{width:88%;height:88%;object-fit:contain;pointer-events:none}.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.status{font-weight:800;margin-bottom:8px}.eval{font-family:monospace;font-size:22px;color:var(--gold)}.hint{color:var(--dim);font-size:13px;line-height:1.7}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.actions button.primary{border-color:var(--gold);color:var(--gold)}.moves{margin-top:12px;max-height:230px;overflow:auto;display:flex;flex-wrap:wrap;gap:6px;direction:ltr}.move{background:#202834;border:1px solid #303b49;border-radius:7px;padding:6px 8px;font-family:monospace}.explain{margin-top:12px;padding:10px;border-radius:10px;background:#10161e;border:1px solid var(--line);line-height:1.7;font-size:13px}@media(max-width:760px){.game{grid-template-columns:1fr}.side{width:min(92vw,560px);margin:auto}.mode{grid-template-columns:1fr 1fr 1fr}.top{align-items:flex-start}.nav{display:none}}</style></head><body>
+<style>:root{--bg:#0d1117;--panel:#151b24;--line:#2b3542;--ink:#f1f4f7;--dim:#9da9b6;--gold:#d9b35b;--green:#65b27a;--red:#d05a5a}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% 0,#1a2230 0,#0d1117 45%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}.top{max-width:900px;margin:auto;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:10px}.top h1{font-size:20px;margin:0}.top small{color:var(--dim)}.nav{display:flex;gap:8px}.nav a{color:var(--ink);text-decoration:none;border:1px solid var(--line);padding:8px 11px;border-radius:9px;font-size:12px}.wrap{max-width:900px;margin:auto;padding:0 14px 30px}.mode{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 14px}.mode button,.actions button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px;font-weight:700}.mode button.active{border-color:var(--gold);color:var(--gold)}.game{display:grid;grid-template-columns:minmax(280px,560px) 1fr;gap:14px;align-items:start}.board{width:min(86vw,460px);aspect-ratio:1;margin:auto;display:grid;grid-template-columns:repeat(8,1fr);border:5px solid #202832;border-radius:6px;overflow:hidden;box-shadow:0 14px 40px #0008}.sq{display:flex;align-items:center;justify-content:center;position:relative;user-select:none}.sq.light{background:#d9c7a1}.sq.dark{background:#8a6b4d}.sq.sel{outline:4px solid #5da4d6;outline-offset:-4px}.sq.last{box-shadow:inset 0 0 0 4px #8fc46a}.sq img{width:88%;height:88%;object-fit:contain;pointer-events:none}.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.status{font-weight:800;margin-bottom:8px}.eval{font-family:monospace;font-size:22px;color:var(--gold)}.hint{color:var(--dim);font-size:13px;line-height:1.7}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.actions button.primary{border-color:var(--gold);color:var(--gold)}.moves{margin-top:12px;max-height:230px;overflow:auto;display:flex;flex-wrap:wrap;gap:6px;direction:ltr}.move{background:#202834;border:1px solid #303b49;border-radius:7px;padding:6px 8px;font-family:monospace}.explain{margin-top:12px;padding:10px;border-radius:10px;background:#10161e;border:1px solid var(--line);line-height:1.7;font-size:13px}@media(max-width:760px){.game{grid-template-columns:1fr}.side{width:min(86vw,460px);margin:auto}.mode{grid-template-columns:1fr 1fr 1fr}.top{align-items:flex-start}.nav{display:none}}</style></head><body>
 <div class="top"><div><h1>♞ Chessjust — العب</h1><small>لعب محلي ضد Stockfish</small></div><div class="nav"><a href="index.html">التحليل</a><a href="coach.html">المدرب</a></div></div>
 <div class="wrap"><div class="mode"><button class="active" data-mode="normal">⚔️ Stockfish</button><button data-mode="beast">👹 الوحش الهجومي</button><button data-mode="defense">🛡️ دفاع الوحش</button></div>
 <div class="game"><div><div id="board" class="board"></div><div class="actions"><button class="primary" id="newGame">مباراة جديدة</button><button id="flip">قلب الرقعة</button></div></div><div class="side"><div id="status" class="status">اختر نقلة</div><div id="eval" class="eval">+0.00</div><div id="hint" class="hint">العب ضد Stockfish محليًا. في وضع الوحش سيحاول المحرك اختيار خطوط أكثر حدة وضغطًا ضمن هامش تقييم معقول.</div><div class="explain" id="explain">💡 بعد المواقف المهمة سيظهر شرح محلي يوضح التهديد أو سبب أفضل رد، بدون API خارجي.</div><div class="moves" id="moves"></div></div></div></div>
 <script src="./vendor/chess.min.js"></script><script>
 'use strict';
 const PIECE=(c,t)=>`./vendor/pieces/${c}${t.toUpperCase()}.svg`;
-let game=new Chess(), selected=null, flipped=false, mode='normal', worker=null, engineReady=false, busy=false, lastMove=null, pending=null;
+let game=new Chess(), selected=null, flipped=false, mode='normal', worker=null, engineReady=false, busy=false, lastMove=null, pending=null, thinkingStarted=0;
 const $=id=>document.getElementById(id);
 function boardSquares(){let a=[];for(let r=0;r<8;r++)for(let f=0;f<8;f++)a.push(String.fromCharCode(97+f)+(8-r));return a}
 function draw(){const b=$('board');b.innerHTML='';let sqs=boardSquares();if(flipped)sqs.reverse();for(const sq of sqs){const f=sq.charCodeAt(0)-97,r=8-parseInt(sq[1]),d=document.createElement('div');d.className='sq '+((f+r)%2?'dark':'light');if(selected===sq)d.classList.add('sel');if(lastMove&&(lastMove.from===sq||lastMove.to===sq))d.classList.add('last');const p=game.get(sq);if(p){const img=document.createElement('img');img.src=PIECE(p.color,p.type);img.onerror=()=>{img.remove();d.textContent={p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'}[p.type]};d.appendChild(img)}d.onclick=()=>clickSq(sq);b.appendChild(d)}}
-function clickSq(sq){if(busy||game.game_over())return;if(game.turn()!=='w')return;if(!selected){if(game.get(sq)?.color==='w'){selected=sq;draw()}return}let mv=game.move({from:selected,to:sq,promotion:'q'});if(!mv){if(game.get(sq)?.color==='w')selected=sq;else selected=null;draw();return}lastMove={from:mv.from,to:mv.to};selected=null;renderMoves();explainMove(mv);draw();updateStatus();setTimeout(engineTurn,80)}
+function clickSq(sq){if(busy||game.game_over())return;if(game.turn()!=='w')return;if(!selected){if(game.get(sq)?.color==='w'){selected=sq;draw()}return}let mv=game.move({from:selected,to:sq,promotion:'q'});if(!mv){if(game.get(sq)?.color==='w')selected=sq;else selected=null;draw();return}lastMove={from:mv.from,to:mv.to};selected=null;busy=true;renderMoves();explainMove(mv);draw();updateStatus();setTimeout(engineTurn,80)}
 function renderMoves(){let arr=game.history();$('moves').innerHTML=arr.map((m,i)=>`<span class="move">${Math.floor(i/2)+1}${i%2?'...':'.'} ${m}</span>`).join('')}
 function updateStatus(){if(game.in_checkmate())$('status').textContent='كش مات';else if(game.in_check())$('status').textContent='كش — اختر ردًا دفاعيًا';else if(game.game_over())$('status').textContent='انتهت المباراة';else $('status').textContent=game.turn()==='w'?'دورك':'Stockfish يفكر...'}
 function explainMove(mv){let s='نقلة جيدة، راقب تهديدات الخصم بعد كل نقلة.';if(mv.captured)s=`أخذت ${mv.captured}. انتبه إلى الرد الإجباري وإعادة حساب حماية القطعة.`;if(mv.san.includes('+'))s='كش! النقلة تخلق تهديدًا مباشرًا، لكن يجب التأكد من الردود الإجبارية.';$('explain').textContent=s}
@@ -19,7 +19,7 @@ function makeWorker(){
  worker=new Worker('./vendor/stockfish-18-single.js');
  worker.onmessage=e=>{
   const x=String(e.data||'');
-  if(x==='uciok'){worker.postMessage('setoption name Threads value 1');worker.postMessage('setoption name MultiPV value 5');worker.postMessage('isready')}
+  if(x==='uciok'){worker.postMessage('setoption name Threads value 1');worker.postMessage('setoption name MultiPV value 1');worker.postMessage('isready')}
   else if(x==='readyok'){engineReady=true;if(pending){pending();pending=null}}
   else if(x.startsWith('info')&&x.includes('score')){
    const m=x.match(/score (cp|mate) (-?\d+)/); if(m)$('eval').textContent=m[1]==='mate'?`#${m[2]}`:(Number(m[2])/100).toFixed(2);
@@ -30,7 +30,7 @@ function makeWorker(){
  worker.postMessage('uci')
 }
 let pendingMoveResolve=null,engineCandidates=null;
-function askEngine(){return new Promise(resolve=>{pendingMoveResolve=resolve;engineCandidates=[];worker.postMessage('position fen '+game.fen());worker.postMessage('go depth 15')})}
+function askEngine(){return new Promise(resolve=>{pendingMoveResolve=resolve;engineCandidates=[];const multi=(mode==='normal'?1:5);const ms=(mode==='normal'?1800:(mode==='beast'?3000:2400));worker.postMessage('setoption name MultiPV value '+multi);worker.postMessage('position fen '+game.fen());thinkingStarted=performance.now();worker.postMessage('go movetime '+ms)})}
 function attackScore(uci){
  try{
   const c=new Chess(game.fen()); const mv=c.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'}); if(!mv)return -999;
@@ -41,6 +41,25 @@ function attackScore(uci){
   return score;
  }catch(e){return 0}
 }
+async function engineTurn(){
+  if(game.game_over() || game.turn()!=='b'){busy=false;updateStatus();return}
+  if(!worker) makeWorker();
+  if(!engineReady){
+    $('status').textContent='Stockfish يستعد...';
+    await new Promise(resolve=>{
+      const started=Date.now();
+      const wait=()=>{
+        if(engineReady) return resolve();
+        if(Date.now()-started>5000) return resolve();
+        setTimeout(wait,50);
+      };
+      wait();
+    });
+  }
+  if(!engineReady){busy=false;$('status').textContent='تعذر تشغيل Stockfish';return}
+  await chooseEngineMove();
+}
+
 async function chooseEngineMove(){
  const res=await askEngine();
  let chosen=res[0]||null;
@@ -62,5 +81,5 @@ function explainEngineMove(mv,m){
  else explainMove(mv)
 }
 
-$('newGame').onclick=()=>{game=new Chess();selected=null;lastMove=null;busy=false;$('eval').textContent='+0.00';$('explain').textContent='💡 مباراة جديدة. حاول التفكير في التهديد قبل النقلة.';renderMoves();draw();updateStatus();if(!worker)makeWorker()};$('flip').onclick=()=>{flipped=!flipped;draw()};document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-mode]').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('hint').textContent=mode==='beast'?'👹 الوحش: هدفه الضغط والتكتيك والهجوم على الملك.':'🛡️ الدفاع: الهدف مواجهة التهديدات وحماية الملك.'});makeWorker();draw();updateStatus();
+$('newGame').onclick=()=>{game=new Chess();selected=null;lastMove=null;busy=false;$('eval').textContent='+0.00';$('explain').textContent='💡 مباراة جديدة. حاول التفكير في التهديد قبل النقلة.';renderMoves();draw();updateStatus();if(!worker)makeWorker()};$('flip').onclick=()=>{flipped=!flipped;draw()};document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-mode]').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=b.dataset.mode;$('hint').textContent=mode==='normal'?'⚔️ Stockfish: رد سريع وقوي في حوالي 1–2.5 ثانية.':(mode==='beast'?'👹 الوحش: ضغط وتكتيك وهجوم على الملك، مع وقت تفكير أطول.':'🛡️ دفاع الوحش: تدريب على مواجهة التهديدات والهجمات، مع بحث أعمق.');});makeWorker();draw();updateStatus();
 </script></body></html>

@@ -98,6 +98,14 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .g-meta{font-size:11px;color:var(--ink-dim);}
 .badge{padding:2px 7px;border-radius:9px;font-size:11px;font-weight:bold;color:#fff;}
 .bw{background:var(--best);}.bl{background:var(--blunder);}.bd{background:var(--inaccuracy);}
+.selected-game{display:none;background:var(--panel2);border:1px solid var(--gold);border-radius:8px;padding:10px;margin-top:8px;}
+.selected-game.show{display:block;}
+.selected-game .sg-title{font-weight:bold;font-size:13px;margin-bottom:3px;}
+.selected-game .sg-meta{font-size:11px;color:var(--ink-dim);line-height:1.6;}
+.selected-game .sg-actions{display:flex;gap:7px;margin-top:8px;}
+.selected-game .sg-actions .btn{flex:1;}
+.game-row.selected{border-color:var(--gold);box-shadow:0 0 0 1px rgba(201,162,39,.25) inset;}
+
 
 /* ── PROGRESS ── */
 .prog-wrap{margin:8px 0;display:none;}
@@ -167,16 +175,17 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 /* ── BOARD ── */
 .board-wrap{display:flex;flex-direction:column;align-items:center;padding:10px;}
 .board-ctrl{display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;}
-.board-ctrl .btn-sm{min-width:52px;min-height:44px;padding:10px 16px;font-size:16px;}
+.board-ctrl .btn-sm{min-width:58px;min-height:48px;padding:11px 18px;font-size:17px;}
 .board-outer{width:100%;max-width:380px;}
 .chess-board{width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);
-  border:2px solid var(--line);border-radius:3px;overflow:hidden;
-  box-shadow:0 6px 18px rgba(0,0,0,.4);}
+  border:3px solid #3b2618;border-radius:2px;overflow:hidden;
+  box-shadow:0 10px 26px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08) inset;}
 .sq{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
   position:relative;cursor:pointer;}
-.sq.light{background:var(--sq-light);}.sq.dark{background:var(--sq-dark);}
-.sq img{width:88%;height:88%;object-fit:contain;pointer-events:none;
-  filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));}
+.sq.light{background:#e8d4ab;}.sq.dark{background:#7a4f31;}
+.sq::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(0,0,0,.05));}
+.sq img{width:91%;height:91%;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 3px 2px rgba(0,0,0,.5));z-index:1;}
 .sq.piece-fallback{font-family:"Noto Sans Symbols 2","Segoe UI Symbol","DejaVu Sans",serif;font-weight:700;}
 .sq.piece-fallback.piece-white{font-size:clamp(34px,9vw,58px);color:#fff8e8;-webkit-text-stroke:1.8px #3b2a1d;text-shadow:0 3px 3px rgba(0,0,0,.55);}
 .sq.piece-fallback.piece-black{font-size:clamp(34px,9vw,58px);color:#1a1510;-webkit-text-stroke:1.4px #e8d4ab;text-shadow:0 2px 3px rgba(0,0,0,.45);}
@@ -260,6 +269,14 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
       <button class="btn btn-sm" onclick="fetchGames()">جلب</button>
     </div>
     <div id="games-list"><div class="hint">أدخل اسمك لجلب آخر 10 مباريات</div></div>
+    <div id="selected-game" class="selected-game">
+      <div class="sg-title" id="sg-title">لم تختر مباراة</div>
+      <div class="sg-meta" id="sg-meta"></div>
+      <div class="sg-actions">
+        <button class="btn" id="sg-start" disabled>▶ بدء التحليل</button>
+        <button class="btn btn-out" id="sg-cancel" type="button">إلغاء</button>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -423,6 +440,7 @@ const S = {
   tracker:  null,
   username: '',
   games:    [],
+  selectedGameIndex: -1,
   // بيانات التحليل الحالي
   fens:           [],   // N+1 موضع (البداية + بعد كل نقلة)
   verboseMoves:   [],   // نتائج chess.js.move() لكل نقلة
@@ -487,7 +505,7 @@ async function initEngine() {
   for (const path of SF_PATHS) {
     try {
       setEng('loading', `⏳ ${path}...`);
-      S.engine = new AnalysisEngine({ stockfishPath: path, poolSize: 1 });
+      S.engine = new AnalysisEngine({ stockfishPath: path, poolSize: 2 });
       await S.engine.initialize();
       S.engine.setLevel(currentLevel());
       S.ready = true;
@@ -605,7 +623,7 @@ function renderGames(el) {
     const opp = iw ? g.black : g.white;
     const r   = RES[me.result] || { l: me.result, c:'bd' };
     const d   = new Date((g.end_time||0)*1000);
-    return `<div class="game-row" onclick="loadGame(${i})">
+    return `<div class="game-row ${i===S.selectedGameIndex?'selected':''}" onclick="loadGame(${i})">
       <div><div class="g-opp">ضد ${opp.username} (${opp.rating||'?'})</div>
       <div class="g-meta">${iw?'⬜':'⬛'} ${g.time_class||''} · ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</div></div>
       <span class="badge ${r.c}">${r.l}</span></div>`;
@@ -615,16 +633,44 @@ function renderGames(el) {
 /* ════════════════════════════════════════
    LOAD GAME
 ════════════════════════════════════════ */
-async function loadGame(idx) {
+function loadGame(idx) {
   const g = S.games[idx]; if (!g) return;
   const iw = (g.white.username||'').toLowerCase() === S.username.toLowerCase();
   const moves = parsePGN(g.pgn||'');
   if (!moves.sans.length) { alert('لم يتم التعرف على النقلات'); return; }
-  enableTabs(); showTab('an');
-  await analyzeGame(moves, iw, {
-    title: `ضد ${iw ? g.black.username : g.white.username}`,
-    sub:   `${g.time_class||''} · ${iw ? 'أبيض' : 'أسود'}`
-  });
+  S.selectedGameIndex = idx;
+  renderGames(document.getElementById('games-list'));
+  const card = document.getElementById('selected-game');
+  const title = document.getElementById('sg-title');
+  const meta = document.getElementById('sg-meta');
+  const start = document.getElementById('sg-start');
+  const cancel = document.getElementById('sg-cancel');
+  title.textContent = `ضد ${iw ? g.black.username : g.white.username}`;
+  meta.textContent = `${g.time_class||'شطرنج'} · ${iw ? 'أبيض' : 'أسود'} · ${moves.sans.length} نقلة · جاهزة للتحليل`;
+  card.classList.add('show');
+  start.disabled = false;
+  start.onclick = () => startSelectedGame();
+  cancel.onclick = () => { S.selectedGameIndex = -1; card.classList.remove('show'); renderGames(document.getElementById('games-list')); };
+}
+
+async function startSelectedGame() {
+  const g = S.games[S.selectedGameIndex];
+  if (!g) return;
+  const iw = (g.white.username||'').toLowerCase() === S.username.toLowerCase();
+  const moves = parsePGN(g.pgn||'');
+  if (!moves.sans.length) { alert('لم يتم التعرف على النقلات'); return; }
+  const start = document.getElementById('sg-start');
+  if (start) { start.disabled = true; start.textContent = '⏳ جاري بدء التحليل...'; }
+  enableTabs();
+  showTab('an');
+  try {
+    await analyzeGame(moves, iw, {
+      title: `ضد ${iw ? g.black.username : g.white.username}`,
+      sub:   `${g.time_class||''} · ${iw ? 'أبيض' : 'أسود'}`
+    });
+  } finally {
+    if (start) { start.disabled = false; start.textContent = '▶ بدء التحليل'; }
+  }
 }
 
 async function runPGN() {
@@ -777,6 +823,10 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   completed = S.fens.length - queryIndices.length;
   if(completed) renderProgress('جاري تحليل المواضع', completed, S.fens.length, 'prog-fill', 'prog-txt');
   document.getElementById('prog-txt').textContent = `جاري تشغيل المحرك — 0/${S.fens.length}`;
+  document.getElementById('sb-pos').textContent = `0/${S.fens.length}`;
+  document.getElementById('sb-depth').textContent = '—';
+  document.getElementById('sb-nps').textContent = '—';
+  document.getElementById('sb-eta').textContent = 'حساب...';
   await S.engine.analyzeBulk(queryIndices.map(i=>S.fens[i]), undefined, (localIdx, result) => {
     const idx = queryIndices[localIdx];
     S.engineResults[idx] = result;

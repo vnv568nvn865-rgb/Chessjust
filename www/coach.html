@@ -152,6 +152,8 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .bad-item{font-size:12px;padding:2px 0;}
 .miss-box{background:rgba(217,182,78,.07);border:1px solid rgba(217,182,78,.25);
   border-radius:7px;padding:9px;margin-top:8px;}
+.coach-acc-pair{display:flex;gap:12px;align-items:center;}
+.coach-acc{text-align:center;min-width:74px;}
 .miss-lbl{font-size:10px;color:var(--inaccuracy);margin-bottom:3px;}
 
 /* ── MOMENTS ── */
@@ -164,7 +166,8 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 
 /* ── BOARD ── */
 .board-wrap{display:flex;flex-direction:column;align-items:center;padding:10px;}
-.board-ctrl{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;}
+.board-ctrl{display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;justify-content:center;}
+.board-ctrl .btn-sm{min-width:52px;min-height:44px;padding:10px 16px;font-size:16px;}
 .board-outer{width:100%;max-width:380px;}
 .chess-board{width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);
   border:2px solid var(--line);border-radius:3px;overflow:hidden;
@@ -172,12 +175,17 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .sq{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
   position:relative;cursor:pointer;}
 .sq.light{background:var(--sq-light);}.sq.dark{background:var(--sq-dark);}
-.sq img{width:82%;height:82%;object-fit:contain;pointer-events:none;
-  filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+.sq img{width:88%;height:88%;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));}
+.sq.piece-fallback{font-family:"Noto Sans Symbols 2","Segoe UI Symbol","DejaVu Sans",serif;font-weight:700;}
+.sq.piece-fallback.piece-white{font-size:clamp(34px,9vw,58px);color:#fff8e8;-webkit-text-stroke:1.8px #3b2a1d;text-shadow:0 3px 3px rgba(0,0,0,.55);}
+.sq.piece-fallback.piece-black{font-size:clamp(34px,9vw,58px);color:#1a1510;-webkit-text-stroke:1.4px #e8d4ab;text-shadow:0 2px 3px rgba(0,0,0,.45);}
 .sq.from-hl{background:rgba(201,162,39,.4)!important;}
 .sq.to-hl{background:rgba(201,162,39,.6)!important;}
 .sq.best-from{background:rgba(55,198,224,.4)!important;}
 .sq.best-to{background:rgba(55,198,224,.6)!important;}
+.sq.quality-from,.sq.quality-to{box-shadow:inset 0 0 0 4px var(--quality,#c9a227)!important;}
+.sq.quality-from{filter:brightness(1.08);}.sq.quality-to{filter:brightness(1.18);}
 .coord{position:absolute;font-size:8px;opacity:.55;font-family:var(--fm);pointer-events:none;}
 .coord.file{bottom:2px;right:2px;}.coord.rank{top:2px;left:2px;}
 .eval-row{display:flex;justify-content:space-between;align-items:center;
@@ -279,9 +287,9 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
         <div style="font-size:14px;font-weight:bold" id="an-title">تحليل</div>
         <div style="font-size:11px;color:var(--ink-dim);margin-top:2px" id="an-sub"></div>
       </div>
-      <div style="text-align:center">
-        <div class="acc-num" id="acc-val">—</div>
-        <div class="acc-lbl" id="acc-lbl">الدقة %</div>
+      <div class="coach-acc-pair">
+        <div class="coach-acc"><div class="acc-num" id="acc-val">—</div><div class="acc-lbl" id="acc-lbl">دقة اللاعب</div></div>
+        <div class="coach-acc"><div class="acc-num" id="opp-acc-val">—</div><div class="acc-lbl" id="opp-acc-lbl">دقة الخصم</div></div>
       </div>
     </div>
     <div class="sc-grid" id="sc-grid" style="display:none"></div>
@@ -724,6 +732,8 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   document.getElementById('an-title').textContent = meta.title;
   document.getElementById('an-sub').textContent   = meta.sub;
   document.getElementById('acc-val').textContent  = '—';
+  document.getElementById('opp-acc-val').textContent = '—';
+  document.getElementById('opp-acc-lbl').textContent = 'دقة الخصم';
   document.getElementById('acc-lbl').textContent  = 'جاري الحساب...';
   document.getElementById('sc-grid').style.display = 'none';
   document.getElementById('sc-grid').innerHTML    = '';
@@ -826,18 +836,16 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   // ─ دقة المباراة (نقلات اللاعب فقط) ─
   const playerMover = playerIsWhite ? 'w' : 'b';
   const gameAcc = AnalysisEngine.gameAccuracy(S.moveCls, playerMover);
-  const playerMoveCount = S.moveCls.filter(c =>
-    c.mover === playerMover || (!c.mover && c.isPlayer)
-  ).length;
-
-  if (playerMoveCount === 0) {
-    document.getElementById('acc-val').textContent = '—';
-    document.getElementById('acc-lbl').textContent = 'لا نقلات';
-  } else {
-    document.getElementById('acc-val').textContent = Math.round(gameAcc) + '%';
-    document.getElementById('acc-lbl').textContent =
-      `دقة ${playerIsWhite ? 'الأبيض' : 'الأسود'} (${playerMoveCount} نقلة)`;
-  }
+  const oppMover = playerMover === 'w' ? 'b' : 'w';
+  const oppAcc = AnalysisEngine.gameAccuracy(S.moveCls, oppMover);
+  const playerMoveCount = S.moveCls.filter(c => c.mover === playerMover).length;
+  const oppMoveCount = S.moveCls.filter(c => c.mover === oppMover).length;
+  const playerName = playerIsWhite ? 'الأبيض' : 'الأسود';
+  const oppName = playerIsWhite ? 'الأسود' : 'الأبيض';
+  document.getElementById('acc-val').textContent = playerMoveCount ? Math.round(gameAcc) + '%' : '—';
+  document.getElementById('acc-lbl').textContent = playerMoveCount ? `دقة ${playerName} (${playerMoveCount} نقلة)` : `دقة ${playerName}`;
+  document.getElementById('opp-acc-val').textContent = oppMoveCount ? Math.round(oppAcc) + '%' : '—';
+  document.getElementById('opp-acc-lbl').textContent = oppMoveCount ? `دقة ${oppName} (${oppMoveCount} نقلة)` : `دقة ${oppName}`;
 
   // ─ إحصاءات ─
   renderStats();
@@ -1070,7 +1078,7 @@ function drawBoard(fen) {
         img.onerror = () => {
           const sp = document.createElement('span');
           sp.textContent = UNICODE[p] || p;
-          sp.style.cssText = `font-size:min(6vw,34px);color:${p===p.toUpperCase()?'#fbf4e4':'#14100a'}`;
+          sp.className = 'piece-fallback ' + (p===p.toUpperCase()?'piece-white':'piece-black');
           img.replaceWith(sp);
         };
         div.appendChild(img);
@@ -1082,11 +1090,13 @@ function drawBoard(fen) {
       }
       if (S.board.idx > 0 && S.moveCls[S.board.idx - 1]) {
         const vm = S.verboseMoves[S.board.idx - 1];
+        const quality = S.moveCls[S.board.idx - 1];
         if (vm?.from && ChessMini) {
           const fc = vm.from.charCodeAt(0)-97, fr = parseInt(vm.from[1])-1;
           const tc = vm.to.charCodeAt(0)-97,   tr = parseInt(vm.to[1])-1;
-          if (sq === fc+fr*8) div.classList.add('from-hl');
-          if (sq === tc+tr*8) div.classList.add('to-hl');
+          if (sq === fc+fr*8) div.classList.add('from-hl','quality-from');
+          if (sq === tc+tr*8) div.classList.add('to-hl','quality-to');
+          if (quality?.color) div.style.setProperty('--quality', quality.color);
         }
       }
       div.onclick = () => handleSqClick(sq, fen);

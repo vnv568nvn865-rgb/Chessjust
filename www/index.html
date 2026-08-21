@@ -122,6 +122,11 @@
   .sq.light{background:var(--sq-light);} .sq.dark{background:var(--sq-dark);}
   .sq.from-hl{background:#c9a22766 !important;}
   .sq.to-hl{background:#c9a22799 !important;}
+  .sq.quality-from,.sq.quality-to{box-shadow:inset 0 0 0 4px var(--quality,#c9a227)!important;}
+  .sq.quality-from{filter:brightness(1.08);}.sq.quality-to{filter:brightness(1.18);}
+  .piece-white,.piece-black{font-family:"Noto Sans Symbols 2","Segoe UI Symbol","DejaVu Sans",serif; font-weight:700; line-height:1;}
+  .piece-white{font-size:clamp(34px,9vw,58px);color:#fff8e8;-webkit-text-stroke:1.8px #3b2a1d;text-shadow:0 3px 3px rgba(0,0,0,.55);}
+  .piece-black{font-size:clamp(34px,9vw,58px);color:#1a1510;-webkit-text-stroke:1.4px #e8d4ab;text-shadow:0 2px 3px rgba(0,0,0,.45);}
   .sq img.piece-img{
     width:82%; height:82%; object-fit:contain;
     filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));
@@ -144,7 +149,7 @@
   .controls-row{display:flex; gap:6px; justify-content:center; flex-wrap:wrap;}
   .controls-row button{
     background:var(--panel2); border:1px solid var(--line); color:var(--ink);
-    padding:8px 14px; border-radius:6px; cursor:pointer; font-size:14px; font-family:var(--font-mono);
+    padding:10px 18px; min-width:52px; min-height:44px; border-radius:6px; cursor:pointer; font-size:14px; font-family:var(--font-mono);
   }
   .controls-row button:hover:not(:disabled){border-color:var(--gold);}
   .controls-row button:disabled{opacity:.35; cursor:default;}
@@ -157,11 +162,12 @@
   .moves-panel{max-height:220px; overflow-y:auto; font-family:var(--font-mono); font-size:13px;}
   .moves-grid{display:grid; grid-template-columns:32px 1fr 1fr; gap:2px 6px;}
   .moves-grid .num{color:var(--ink-dim);}
-  .moves-grid span.mv{padding:3px 6px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:4px; justify-content:space-between;}
+  .moves-grid span.mv{padding:6px 8px; min-height:34px; border-radius:4px; cursor:pointer; display:flex; align-items:center; gap:4px; justify-content:space-between;}
   .moves-grid span.mv:hover{background:var(--panel2);}
   .moves-grid span.mv.cur{background:var(--gold); color:#241812; font-weight:bold;}
-  .mv-icon{font-size:11px;}
-  .mv-icon.brilliant{color:#37c6e0;} .mv-icon.best{color:#5f9e6e;} .mv-icon.excellent{color:#7fb87a;}
+  .mv-icon{font-size:11px; font-weight:700; white-space:nowrap;}
+  .mv-quality{font-size:9px;padding:2px 5px;border-radius:7px;background:rgba(0,0,0,.14);font-family:var(--font-body);white-space:nowrap;}
+  .mv-icon.brilliant{color:#37c6e0;} .mv-icon.best{color:#5f9e6e;} .mv-icon.great{color:#7fb87a;} .mv-icon.excellent{color:#7fb87a;}
   .mv-icon.good{color:#9fc98a;} .mv-icon.inaccuracy{color:#d9b64e;} .mv-icon.mistake{color:#d98a3f;}
   .mv-icon.blunder{color:#c95a4a;}
 
@@ -599,6 +605,11 @@
         const squareName = files[c] + (8 - r);
         if(lastMove && squareName === lastMove.from) sq.classList.add('from-hl');
         if(lastMove && squareName === lastMove.to) sq.classList.add('to-hl');
+        const quality = currentPly > 0 ? moveClass[currentPly - 1] : null;
+        if(quality && lastMove && (squareName === lastMove.from || squareName === lastMove.to) && quality.color){
+          sq.classList.add(squareName === lastMove.from ? 'quality-from' : 'quality-to');
+          sq.style.setProperty('--quality', quality.color);
+        }
         if(piece){
           const symbol = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
           const img = document.createElement('img');
@@ -608,7 +619,7 @@
           img.draggable = false;
           img.onerror = function(){
             // bundled image missing for some reason — degrade gracefully to unicode glyph
-            sq.classList.add(piece.color === 'w' ? 'piece-white' : 'piece-black');
+            sq.classList.add('piece-fallback', piece.color === 'w' ? 'piece-white' : 'piece-black');
             sq.textContent = PIECE_UNICODE[symbol] || '';
             img.remove();
           };
@@ -620,7 +631,7 @@
   }
 
   const MOVE_CLASS_ICON = {
-    brilliant: '💎', best: '⭐', excellent: '✓', good: '✓',
+    brilliant: '💎', best: '⭐', great: '!', excellent: '✓', good: '✓',
     inaccuracy: '?!', mistake: '?', blunder: '??'
   };
 
@@ -649,8 +660,9 @@
 
   function moveCell(moveIdx, ply){
     const cls = moveClass[moveIdx];
-    const iconHtml = cls ? `<span class="mv-icon ${cls.cls}" title="${escapeHtml(cls.label)}">${MOVE_CLASS_ICON[cls.cls]||''}</span>` : '';
-    return `<span class="mv${currentPly===ply?' cur':''}" data-ply="${ply}"><span>${sanMoves[moveIdx]}</span>${iconHtml}</span>`;
+    const iconHtml = cls ? `<span class="mv-icon ${cls.type||cls.cls}" style="color:${cls.color||'#c9a227'}" title="${escapeHtml(cls.labelAr||cls.label||'')}">${MOVE_CLASS_ICON[cls.type||cls.cls]||''}</span>` : '';
+    const qualityHtml = cls ? `<span class="mv-quality" style="color:${cls.color||'#c9a227'}">${escapeHtml(cls.labelAr||cls.label||'—')}</span>` : '';
+    return `<span class="mv${currentPly===ply?' cur':''}" data-ply="${ply}" title="${escapeHtml(cls?.labelAr||'')}"><span>${sanMoves[moveIdx]}</span>${qualityHtml}${iconHtml}</span>`;
   }
 
   function goToPly(ply){
@@ -785,7 +797,7 @@
     if(result?.bestmove) bestSan = uciToSan(fen,result.bestmove) || result.bestmove;
     let qualityHtml='';
     const q=currentPly>0 ? moveClass[currentPly-1] : null;
-    if(q) qualityHtml=`<span class="mv-icon ${q.cls}">${MOVE_CLASS_ICON[q.cls]||''} ${escapeHtml(q.label)}</span>`;
+    if(q) qualityHtml=`<span class="mv-icon ${q.type}" style="color:${q.color||'#c9a227'}">${MOVE_CLASS_ICON[q.type]||''} ${escapeHtml(q.labelAr||'')}</span>`;
     setEvalReadout(label,bestSan,fraction,qualityHtml);
   }
 

@@ -204,6 +204,16 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
   border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .ok{color:var(--best);}.err{color:var(--blunder);}
+
+/* v17 unified Chessjust design system */
+:root{--app-radius:16px;--app-shadow:0 10px 30px rgba(0,0,0,.20)}
+body{background:radial-gradient(circle at 50% -10%,rgba(201,162,39,.10),transparent 34%),var(--bg);}
+.topbar,.top{box-shadow:0 8px 28px rgba(0,0,0,.12);position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);}
+.panel,.card{border-radius:var(--app-radius);box-shadow:var(--app-shadow);}
+button,.btn,.theme-btn,.tbtn,.tab,.game-row,.lv{transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease;}
+button:active,.btn:active,.theme-btn:active,.tbtn:active{transform:scale(.98);}
+.app-nav a,.tabs .tab{font-weight:700;}
+.app-nav a.active{box-shadow:0 5px 16px rgba(201,162,39,.16);}
 </style>
 </head>
 <body data-theme="dark">

@@ -206,7 +206,17 @@
   button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
     outline:2px solid var(--gold); outline-offset:2px;
   }
-.app-nav{max-width:1180px;margin:10px auto 0;padding:0 18px;display:flex;gap:8px;overflow:auto}.app-nav a{flex:0 0 auto;text-decoration:none;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:9px 14px;border-radius:10px;font-size:13px}.app-nav a.active,.app-nav a:hover{border-color:var(--gold);color:var(--gold)}</style>
+.app-nav{max-width:1180px;margin:10px auto 0;padding:0 18px;display:flex;gap:8px;overflow:auto}.app-nav a{flex:0 0 auto;text-decoration:none;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:9px 14px;border-radius:10px;font-size:13px}.app-nav a.active,.app-nav a:hover{border-color:var(--gold);color:var(--gold)}
+/* v17 unified Chessjust design system */
+:root{--app-radius:16px;--app-shadow:0 10px 30px rgba(0,0,0,.20)}
+body{background:radial-gradient(circle at 50% -10%,rgba(201,162,39,.10),transparent 34%),var(--bg);}
+.topbar,.top{box-shadow:0 8px 28px rgba(0,0,0,.12);position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);}
+.panel,.card{border-radius:var(--app-radius);box-shadow:var(--app-shadow);}
+button,.btn,.theme-btn,.tbtn,.tab,.game-row,.lv{transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease;}
+button:active,.btn:active,.theme-btn:active,.tbtn:active{transform:scale(.98);}
+.app-nav a,.tabs .tab{font-weight:700;}
+.app-nav a.active{box-shadow:0 5px 16px rgba(201,162,39,.16);}
+</style>
 </head>
 <body data-theme="dark">
 
@@ -951,6 +961,19 @@
 
   /* ---------- move classification (Best/Excellent/Inaccuracy/Blunder/etc.) ---------- */
   const PIECE_VALUE = {p:1, n:3, b:3, r:5, q:9, k:0};
+  // v17 local opening recognition (offline, compact and deterministic)
+  const OPENINGS = [
+    {p:'e4 e5 Nf3 Nc6 Bb5',n:'Ruy Lopez'},
+    {p:'e4 e5 Nf3 Nc6 Bc4',n:'Italian Game'},
+    {p:'e4 c5 Nf3 d6 d4',n:'Sicilian Defense'},
+    {p:'e4 c6 d4 d5',n:'Caro-Kann Defense'},
+    {p:'e4 e6 d4 d5',n:'French Defense'},
+    {p:'d4 d5 c4',n:"Queen's Gambit"},
+    {p:'d4 Nf6 c4 g6 Nc3',n:"King's Indian Defense"},
+    {p:'d4 Nf6 c4 e6 Nc3',n:'Nimzo-Indian Defense'}
+  ];
+  function detectOpening(sans){const s=sans.slice(0,5).join(' ');let best='';for(const o of OPENINGS){if(s.startsWith(o.p)&&o.p.length>best.length)best=o.p;}return OPENINGS.find(o=>o.p===best)?.n||'افتتاح غير معروف';}
+
 
   // fallback only — used when the engine didn't report WDL (e.g. the classical
   // non-NNUE fallback engine doesn't support UCI_ShowWDL)

@@ -69,12 +69,12 @@ class AnalysisEngine {
       };
 
       const hardTimer = setTimeout(() => {
-        // Some Stockfish JS builds do not expose the handshake lines reliably
-        // through every Android WebView. The original project tolerated this
-        // after a short load window, so do the same rather than blocking Coach.
-        if (uciOk || readyOk) finish();
-        else finish();
-      }, 2500);
+        // Give Android WebView enough time for the UCI handshake. Do not mark
+        // the worker ready just because the timeout expired: that creates a
+        // false-ready state and later makes Coach wait forever on isready.
+        if (uciOk && readyOk) finish();
+        else fail(new Error('Stockfish UCI handshake timeout'));
+      }, 10000);
 
       worker.onerror = fail;
       worker.onmessage = e => {
@@ -141,7 +141,7 @@ class AnalysisEngine {
 
   static emptyResult() { return {cp:null,mate:null,bestmove:null,depth:0,nodes:0,time:0,pv:[],valid:false}; }
 
-  async _waitReady(slot, timeoutMs = 3000) {
+  async _waitReady(slot, timeoutMs = 6000) {
     return new Promise(resolve => {
       let done = false;
       const finish = ok => { if (done) return; done = true; clearTimeout(timer); slot.pendingReadyResolve = null; resolve(ok); };
@@ -292,12 +292,13 @@ class AnalysisEngine {
     const loss = AnalysisEngine.expectedLoss(beforeWhiteCp, afterWhiteCp, mover);
     if (loss === null) return null;
 
-    // Public Chess.com bands: 0-.02 Excellent, .02-.05 Good, .05-.10
-    // Inaccuracy, .10-.20 Mistake, .20+ Blunder. We map those same bands to
-    // a continuous score. The exponent makes losses grow progressively more
-    // expensive instead of allowing a single blunder to hide inside a 99%.
-    const normalized = Math.min(1, Math.max(0, loss / 0.20));
-    const score = 100 * Math.pow(1 - normalized, 1.45);
+    // Continuous Expected-Points calibration. The public Chess.com bands
+    // remain the classification reference, while this separate curve keeps
+    // small inaccuracies near the high 90s and makes large mistakes matter
+    // strongly without forcing every game toward 0 or 100. CAPS2's exact
+    // formula is private, so this is deliberately transparent rather than a
+    // claim of reproducing the proprietary formula.
+    const score = 100 * Math.exp(-6 * Math.pow(Math.min(1, Math.max(0, loss)), 1.35));
     return Math.max(0, Math.min(100, score));
   }
 
@@ -384,13 +385,12 @@ class AnalysisEngine {
     const vals = (classifications || []).filter(c => c && c.mover === mover && typeof c.moveAcc === 'number');
     if (!vals.length) return 0;
 
-    // Critical errors deserve more weight than routine precise moves. This is
-    // intentionally transparent and rating-neutral; it is not claimed to be
-    // Chess.com's private CAPS2 formula.
+    // Give serious mistakes more influence, but keep the weighting bounded so
+    // one error cannot erase an otherwise strong game.
     let weighted = 0, weightTotal = 0;
     for (const c of vals) {
-      const loss = typeof c.expectedLoss === 'number' ? c.expectedLoss : 0;
-      const weight = 1 + 20 * Math.min(1, Math.max(0, loss));
+      const loss = typeof c.expectedLoss === 'number' ? Math.min(1, Math.max(0, c.expectedLoss)) : 0;
+      const weight = 1 + 3 * Math.sqrt(loss / 0.20);
       weighted += c.moveAcc * weight;
       weightTotal += weight;
     }

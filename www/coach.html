@@ -479,7 +479,7 @@ async function initEngine() {
   for (const path of SF_PATHS) {
     try {
       setEng('loading', `⏳ ${path}...`);
-      S.engine = new AnalysisEngine({ stockfishPath: path, poolSize: 2 });
+      S.engine = new AnalysisEngine({ stockfishPath: path, poolSize: 1 });
       await S.engine.initialize();
       S.engine.setLevel(currentLevel());
       S.ready = true;
@@ -766,6 +766,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
   }
   completed = S.fens.length - queryIndices.length;
   if(completed) renderProgress('جاري تحليل المواضع', completed, S.fens.length, 'prog-fill', 'prog-txt');
+  document.getElementById('prog-txt').textContent = `جاري تشغيل المحرك — 0/${S.fens.length}`;
   await S.engine.analyzeBulk(queryIndices.map(i=>S.fens[i]), undefined, (localIdx, result) => {
     const idx = queryIndices[localIdx];
     S.engineResults[idx] = result;

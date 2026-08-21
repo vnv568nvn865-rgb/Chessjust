@@ -1,113 +1,1505 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Chessjust — العب</title>
-<style>:root{--bg:#0d1117;--panel:#151b24;--line:#2b3542;--ink:#f1f4f7;--dim:#9da9b6;--gold:#d9b35b;--green:#65b27a;--red:#d05a5a}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1016 0%,#0f1620 55%,#0b1016 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}.top{max-width:900px;margin:auto;padding:18px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:0;z-index:10;background:rgba(13,17,23,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}.top h1{font-size:21px;margin:0}.top small{color:var(--dim);font-size:11px}.nav{display:flex;gap:8px}.nav a{color:var(--ink);text-decoration:none;border:1px solid var(--line);padding:8px 11px;border-radius:9px;font-size:12px}.wrap{max-width:900px;margin:auto;padding:0 14px 30px}.mode{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 10px}.mode button,.actions button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px;font-weight:700;box-shadow:0 4px 14px #0004;transition:.18s ease}.mode button.active{border-color:var(--gold);color:var(--gold)}.mode button:active,.actions button:active{transform:translateY(1px) scale(.99)}.strength{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:14px}.strength-row{display:flex;align-items:center;gap:10px}.strength label{font-size:13px;font-weight:800;white-space:nowrap}.strength input{flex:1;accent-color:var(--gold)}.strength-value{min-width:68px;text-align:center;color:var(--gold);font-family:monospace;font-weight:900}.strength-note{margin-top:5px;color:var(--dim);font-size:11px}.game{display:grid;grid-template-columns:minmax(280px,560px) 1fr;gap:14px;align-items:start}.board-shell{display:grid;grid-template-columns:24px auto;grid-template-rows:auto 24px;gap:3px;justify-content:center;align-items:stretch;direction:ltr;margin:0 auto;width:fit-content;max-width:100%}.board-shell>div:nth-child(2){min-width:0;width:min(86vw,560px)}.board{direction:ltr;width:100%;height:auto;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));border:5px solid #202832;border-radius:6px;overflow:hidden;box-shadow:0 14px 40px #0008}.sq{display:flex;align-items:center;justify-content:center;position:relative;user-select:none}.sq.light{background:#d9c7a1}.sq.dark{background:#8a6b4d}.sq.sel{outline:4px solid #5da4d6;outline-offset:-4px}.sq.last{box-shadow:inset 0 0 0 4px #8fc46a}.sq img{width:88%;height:88%;object-fit:contain;pointer-events:none}.coord{display:none!important}.rank-rail{display:grid;grid-template-rows:repeat(8,1fr);font:800 12px/1 monospace;align-items:center;text-align:center;color:var(--dim);padding:2px 0}.file-rail{display:grid;grid-template-columns:repeat(8,1fr);font:800 12px/1 monospace;text-align:center;align-items:center;color:var(--dim);height:24px}.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.status{font-weight:800;margin-bottom:8px}.eval{font-family:monospace;font-size:22px;color:var(--gold)}.hint{color:var(--dim);font-size:13px;line-height:1.7}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.actions button:disabled{opacity:.45}.actions button.danger{border-color:var(--red);color:var(--red)}.actions button.primary{border-color:var(--gold);color:var(--gold)}.moves{margin-top:12px;max-height:230px;overflow:auto;display:flex;flex-wrap:wrap;gap:6px;direction:ltr}.move{background:#202834;border:1px solid #303b49;border-radius:7px;padding:6px 8px;font-family:monospace}.explain{margin-top:12px;padding:10px;border-radius:10px;background:#10161e;border:1px solid var(--line);line-height:1.7;font-size:13px}.engine-debug{margin-top:10px;color:var(--dim);font:11px/1.6 monospace;direction:ltr;white-space:pre-wrap}.best-line{color:var(--green)}@media(max-width:760px){.game{grid-template-columns:1fr}.side{width:min(92vw,560px);margin:auto}.mode{grid-template-columns:1fr 1fr 1fr}.top{align-items:flex-start}.nav{display:none}.board-shell{grid-template-columns:20px auto;grid-template-rows:auto 20px}.rank-rail,.file-rail{font-size:10px}.file-rail{height:20px}.strength-row{gap:7px}}\n</style></head><body>
-<div class="top"><div><h1>♞ Chessjust — العب</h1><small>لعب محلي ضد Stockfish</small></div><div class="nav"><a href="index.html">التحليل</a><a href="coach.html">المدرب</a></div></div>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Chessjust — العب</title>
+
+<style>
+:root{
+ --bg:#0d1117;
+ --panel:#151b24;
+ --line:#2b3542;
+ --ink:#f1f4f7;
+ --dim:#9da9b6;
+ --gold:#d9b35b;
+ --green:#65b27a;
+ --red:#d05a5a
+}
+
+*{box-sizing:border-box}
+
+body{
+ margin:0;
+ background:linear-gradient(180deg,#0b1016 0%,#0f1620 55%,#0b1016 100%);
+ color:var(--ink);
+ font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif
+}
+
+.top{
+ max-width:900px;
+ margin:auto;
+ padding:18px 16px;
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ gap:10px;
+ position:sticky;
+ top:0;
+ z-index:10;
+ background:rgba(13,17,23,.92);
+ backdrop-filter:blur(12px);
+ border-bottom:1px solid var(--line)
+}
+
+.top h1{
+ font-size:21px;
+ margin:0
+}
+
+.top small{
+ color:var(--dim);
+ font-size:11px
+}
+
+.nav{
+ display:flex;
+ gap:8px
+}
+
+.nav a{
+ color:var(--ink);
+ text-decoration:none;
+ border:1px solid var(--line);
+ padding:8px 11px;
+ border-radius:9px;
+ font-size:12px
+}
+
+.wrap{
+ max-width:900px;
+ margin:auto;
+ padding:0 14px 30px
+}
+
+.mode{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:8px;
+ margin:8px 0 10px
+}
+
+.mode button,
+.actions button{
+ background:var(--panel);
+ color:var(--ink);
+ border:1px solid var(--line);
+ border-radius:10px;
+ padding:11px;
+ font-weight:700;
+ box-shadow:0 4px 14px #0004;
+ transition:.18s ease
+}
+
+.mode button.active{
+ border-color:var(--gold);
+ color:var(--gold)
+}
+
+.mode button:active,
+.actions button:active{
+ transform:translateY(1px) scale(.99)
+}
+
+.strength{
+ background:var(--panel);
+ border:1px solid var(--line);
+ border-radius:12px;
+ padding:10px 12px;
+ margin-bottom:14px
+}
+
+.strength-row{
+ display:flex;
+ align-items:center;
+ gap:10px
+}
+
+.strength label{
+ font-size:13px;
+ font-weight:800;
+ white-space:nowrap
+}
+
+.strength input{
+ flex:1;
+ accent-color:var(--gold)
+}
+
+.strength-value{
+ min-width:68px;
+ text-align:center;
+ color:var(--gold);
+ font-family:monospace;
+ font-weight:900
+}
+
+.strength-note{
+ margin-top:5px;
+ color:var(--dim);
+ font-size:11px
+}
+
+.game{
+ display:grid;
+ grid-template-columns:minmax(280px,560px) 1fr;
+ gap:14px;
+ align-items:start
+}
+
+.board-shell{
+ display:grid;
+ grid-template-columns:24px auto;
+ grid-template-rows:auto 24px;
+ gap:3px;
+ justify-content:center;
+ align-items:stretch;
+ direction:ltr;
+ margin:0 auto;
+ width:fit-content;
+ max-width:100%
+}
+
+.board-shell>div:nth-child(2){
+ min-width:0;
+ width:min(86vw,560px)
+}
+
+.board{
+ direction:ltr;
+ width:100%;
+ height:auto;
+ aspect-ratio:1/1;
+ display:grid;
+ grid-template-columns:repeat(8,minmax(0,1fr));
+ grid-template-rows:repeat(8,minmax(0,1fr));
+ border:5px solid #202832;
+ border-radius:6px;
+ overflow:hidden;
+ box-shadow:0 14px 40px #0008
+}
+
+.sq{
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ position:relative;
+ user-select:none
+}
+
+.sq.light{background:#d9c7a1}
+.sq.dark{background:#8a6b4d}
+
+.sq.sel{
+ outline:4px solid #5da4d6;
+ outline-offset:-4px
+}
+
+.sq.last{
+ box-shadow:inset 0 0 0 4px #8fc46a
+}
+
+.sq img{
+ width:88%;
+ height:88%;
+ object-fit:contain;
+ pointer-events:none
+}
+
+.coord{
+ display:none!important
+}
+
+.rank-rail{
+ display:grid;
+ grid-template-rows:repeat(8,1fr);
+ font:800 12px/1 monospace;
+ align-items:center;
+ text-align:center;
+ color:var(--dim);
+ padding:2px 0
+}
+
+.file-rail{
+ display:grid;
+ grid-template-columns:repeat(8,1fr);
+ font:800 12px/1 monospace;
+ text-align:center;
+ align-items:center;
+ color:var(--dim);
+ height:24px
+}
+
+.side{
+ background:var(--panel);
+ border:1px solid var(--line);
+ border-radius:12px;
+ padding:14px
+}
+
+.status{
+ font-weight:800;
+ margin-bottom:8px
+}
+
+.eval{
+ font-family:monospace;
+ font-size:22px;
+ color:var(--gold)
+}
+
+.hint{
+ color:var(--dim);
+ font-size:13px;
+ line-height:1.7
+}
+
+.actions{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:8px;
+ margin-top:12px
+}
+
+.actions button:disabled{
+ opacity:.45
+}
+
+.actions button.danger{
+ border-color:var(--red);
+ color:var(--red)
+}
+
+.actions button.primary{
+ border-color:var(--gold);
+ color:var(--gold)
+}
+
+.moves{
+ margin-top:12px;
+ max-height:230px;
+ overflow:auto;
+ display:flex;
+ flex-wrap:wrap;
+ gap:6px;
+ direction:ltr
+}
+
+.move{
+ background:#202834;
+ border:1px solid #303b49;
+ border-radius:7px;
+ padding:6px 8px;
+ font-family:monospace
+}
+
+.explain{
+ margin-top:12px;
+ padding:10px;
+ border-radius:10px;
+ background:#10161e;
+ border:1px solid var(--line);
+ line-height:1.7;
+ font-size:13px
+}
+
+.engine-debug{
+ margin-top:10px;
+ color:var(--dim);
+ font:11px/1.6 monospace;
+ direction:ltr;
+ white-space:pre-wrap
+}
+
+.best-line{
+ color:var(--green)
+}
+
+@media(max-width:760px){
+ .game{grid-template-columns:1fr}
+ .side{
+  width:min(92vw,560px);
+  margin:auto
+ }
+ .mode{grid-template-columns:1fr 1fr 1fr}
+ .top{align-items:flex-start}
+ .nav{display:none}
+ .board-shell{
+  grid-template-columns:20px auto;
+  grid-template-rows:auto 20px
+ }
+ .rank-rail,
+ .file-rail{
+  font-size:10px
+ }
+ .file-rail{height:20px}
+ .strength-row{gap:7px}
+}
+</style>
+</head>
+
+<body>
+
+<div class="top">
+ <div>
+  <h1>♞ Chessjust — العب</h1>
+  <small>لعب محلي ضد Stockfish</small>
+ </div>
+
+ <div class="nav">
+  <a href="index.html">التحليل</a>
+  <a href="coach.html">المدرب</a>
+ </div>
+</div>
+
 <div class="wrap">
-<div class="mode"><button class="active" data-mode="normal">⚔️ Stockfish</button><button data-mode="beast">👹 الوحش الهجومي</button><button data-mode="defense">🛡️ دفاع الوحش</button></div>
-<div class="strength"><div class="strength-row"><label for="strength">قوة المحرك</label><input id="strength" type="range" min="250" max="3200" step="10" value="3200"><div class="strength-value" id="strengthValue">3200</div></div><div class="strength-note" id="strengthNote">3200 = أقصى قوة عملية. الرقم مستوى قوة مستهدف وليس Elo رسميًا.</div></div>
-<div class="game"><div><div class="board-shell"><div class="rank-rail" id="rankRail"></div><div><div class="file-rail" id="fileRail"></div><div id="board" class="board"></div></div></div><div class="actions"><button class="primary" id="newGame">🔄 مباراة جديدة</button><button id="flip">↔️ قلب الرقعة</button><button id="bestMove">💡 أفضل نقلة</button><button id="resign">🏳️ استسلام</button></div></div>
-<div class="side"><div id="status" class="status">اختر نقلة</div><div id="eval" class="eval">+0.00</div><div id="hint" class="hint">Stockfish يبحث ضمن ميزانية زمنية متكيفة مع القوة، ثم يعيد النقلة مباشرة.</div><div class="explain" id="explain">💡 بعد المواقف المهمة سيظهر شرح محلي يوضح التهديد أو سبب أفضل رد، بدون API خارجي.</div><div class="engine-debug" id="engineDebug"></div><div class="moves" id="moves"></div></div></div></div>
-<script src="./vendor/chess.min.js"></script><script>
+
+<div class="mode">
+ <button class="active" data-mode="normal">⚔️ Stockfish</button>
+ <button data-mode="beast">👹 الوحش الهجومي</button>
+ <button data-mode="defense">🛡️ دفاع الوحش</button>
+</div>
+
+<div class="strength">
+ <div class="strength-row">
+  <label for="strength">قوة المحرك</label>
+  <input id="strength" type="range" min="250" max="3200" step="10" value="3200">
+  <div class="strength-value" id="strengthValue">3200</div>
+ </div>
+
+ <div class="strength-note" id="strengthNote">
+  3200 = أقصى قوة عملية. الرقم مستوى قوة مستهدف وليس Elo رسميًا.
+ </div>
+</div>
+
+<div class="game">
+
+<div>
+
+<div class="board-shell">
+
+ <div class="rank-rail" id="rankRail"></div>
+
+ <div>
+  <div class="file-rail" id="fileRail"></div>
+  <div id="board" class="board"></div>
+ </div>
+
+</div>
+
+<div class="actions">
+ <button class="primary" id="newGame">🔄 مباراة جديدة</button>
+ <button id="flip">↔️ قلب الرقعة</button>
+ <button id="bestMove">💡 أفضل نقلة</button>
+ <button id="resign">🏳️ استسلام</button>
+</div>
+
+</div>
+
+<div class="side">
+
+ <div id="status" class="status">اختر نقلة</div>
+
+ <div id="eval" class="eval">+0.00</div>
+
+ <div id="hint" class="hint">
+  Stockfish يبحث ضمن ميزانية زمنية متكيفة مع القوة، ثم يعيد النقلة مباشرة.
+ </div>
+
+ <div class="explain" id="explain">
+  💡 بعد المواقف المهمة سيظهر شرح محلي يوضح التهديد أو سبب أفضل رد، بدون API خارجي.
+ </div>
+
+ <div class="engine-debug" id="engineDebug"></div>
+
+ <div class="moves" id="moves"></div>
+
+</div>
+
+</div>
+</div>
+
+<script src="./vendor/chess.min.js"></script>
+
+<script>
 'use strict';
+
 const PIECE=(c,t)=>`./vendor/pieces/${c}${t.toUpperCase()}.svg`;
+
 const MODES=['normal','beast','defense'];
+
 const modeState={};
-for(const m of MODES) modeState[m]={game:new Chess(),lastMove:null,selected:null,ended:false};
-let mode='normal',flipped=false,busy=false;
-let enginePool=[],engineReady=false,pending=null,searchGeneration=0,searchTimer=null;
-let lastInfo={depth:0,score:0,pv:'',nodes:0,nps:0,stableMs:0,lastChange:0,wdl:null};
+
+for(const m of MODES){
+ modeState[m]={
+  game:new Chess(),
+  lastMove:null,
+  selected:null,
+  ended:false
+ };
+}
+
+let mode='normal';
+let flipped=false;
+let busy=false;
+
+let enginePool=[];
+let engineReady=false;
+
+let pending=null;
+let searchGeneration=0;
+let searchTimer=null;
+
+let lastInfo={
+ depth:0,
+ score:0,
+ pv:'',
+ nodes:0,
+ nps:0,
+ stableMs:0,
+ lastChange:0,
+ wdl:null
+};
+
 const $=id=>document.getElementById(id);
-function state(){return modeState[mode]}
-function boardSquares(){const a=[];for(let r=0;r<8;r++)for(let f=0;f<8;f++)a.push(String.fromCharCode(97+f)+(8-r));return a}
-function draw(){const st=state(),b=$('board');b.innerHTML='';let sqs=boardSquares();if(flipped)sqs.reverse();
- const files=[...'abcdefgh'],ranks=['8','7','6','5','4','3','2','1'],rf=$('rankRail'),ff=$('fileRail');
- if(rf)rf.innerHTML=(flipped?[...ranks].reverse():ranks).map(x=>`<span>${x}</span>`).join('');
- if(ff)ff.innerHTML=(flipped?[...files].reverse():files).map(x=>`<span>${x}</span>`).join('');
- for(const sq of sqs){const f=sq.charCodeAt(0)-97,r=8-Number(sq[1]),d=document.createElement('div');d.className='sq '+((f+r)%2?'dark':'light');
-  if(st.selected===sq)d.classList.add('sel');if(st.lastMove&&(st.lastMove.from===sq||st.lastMove.to===sq))d.classList.add('last');
-  const pc=st.game.get(sq);if(pc){const img=document.createElement('img');img.src=PIECE(pc.color,pc.type);img.onerror=()=>{img.remove();d.appendChild(document.createTextNode({p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'}[pc.type]))};d.appendChild(img)}
-  d.onclick=()=>clickSq(sq);b.appendChild(d)}}
-function renderMoves(){const arr=state().game.history();$('moves').innerHTML=arr.map((m,i)=>`<span class="move">${Math.floor(i/2)+1}${i%2?'...':'.'} ${m}</span>`).join('')}
-function updateStatus(){const st=state(),g=st.game;let txt=g.in_checkmate()?(g.turn()==='w'?'كش مات — Stockfish فاز':'كش مات — أنت فز'):g.in_draw()?'تعادل':st.ended?'انتهت المباراة':g.turn()==='w'?'دورك':'Stockfish يفكر...';$('status').textContent=txt;
- const end=g.game_over()||st.ended;$('bestMove').disabled=end||busy||g.turn()!=='w';$('resign').disabled=end||busy||g.turn()!=='w'}
-function explainMove(mv){let s='نقلة جيدة، راقب تهديدات الخصم بعد كل نقلة.';if(mv.captured)s=`أخذت ${mv.captured}. انتبه إلى الرد الإجباري وإعادة حساب حماية القطعة.`;if(mv.san.includes('+'))s='كش! النقلة تخلق تهديدًا مباشرًا، لكن يجب التأكد من الردود الإجبارية.';$('explain').textContent=s}
-function clickSq(sq){const st=state(),g=st.game;if(busy||g.game_over()||st.ended||g.turn()!=='w')return;
- if(!st.selected){if(g.get(sq)?.color==='w'){st.selected=sq;draw()}return}
- const mv=g.move({from:st.selected,to:sq,promotion:'q'});if(!mv){if(g.get(sq)?.color==='w')st.selected=sq;else st.selected=null;draw();return}
- st.lastMove={from:mv.from,to:mv.to};st.selected=null;busy=true;renderMoves();explainMove(mv);draw();updateStatus();setTimeout(engineTurn,40)}
-function setEngineDebug(){const i=lastInfo;$('engineDebug').innerHTML=`Engine: Stockfish 18 • Depth: ${i.depth||0} • Nodes: ${(i.nodes||0).toLocaleString()} • NPS: ${(i.nps||0).toLocaleString()} • ${i.wdl?'WDL: '+i.wdl:''}`;if(i.pv)$('engineDebug').innerHTML+=`<br><span class="best-line">PV: ${i.pv}</span>`}
-function parseScore(x){const m=x.match(/score (cp|mate) (-?\\d+)/);if(!m)return null;return m[1]==='cp'?Number(m[2]):(Number(m[2])>0?100000:-100000)}
-function applyStrength(w,level){let skill=Math.round((level-250)/(3200-250)*20);skill=Math.max(0,Math.min(20,skill));
- w.postMessage('setoption name Skill Level value '+skill);
- // Stockfish UCI_Elo is a bounded strength target. Keep it disabled at maximum.
- if(level>=3200){w.postMessage('setoption name UCI_LimitStrength value false')}
- else if(level>=1300){const elo=Math.round(Math.max(1320,Math.min(3190,level)));w.postMessage('setoption name UCI_LimitStrength value true');w.postMessage('setoption name UCI_Elo value '+elo)}
- else{w.postMessage('setoption name UCI_LimitStrength value false')}
- w.postMessage('setoption name MultiPV value 1');
- w.postMessage('setoption name Threads value 1');
- w.postMessage('setoption name Hash value 48');
+
+function state(){
+ return modeState[mode];
 }
-function makeSlot(url,index){return new Promise((resolve,reject)=>{let w;try{w=new Worker(url)}catch(e){reject(e);return}const slot={worker:w,index,url,ready:false,best:null,info:{depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()}};w.onerror=()=>reject(new Error('engine load failed'));w.onmessage=e=>handleEngineMessage(slot,String(e.data||''));w.postMessage('uci');const t=setTimeout(()=>{if(!slot.ready)reject(new Error('engine timeout'));else resolve(slot)},5000);slot._resolveReady=()=>{clearTimeout(t);if(!slot.ready){slot.ready=true;resolve(slot)}}});}
+
+function boardSquares(){
+ const a=[];
+
+ for(let r=0;r<8;r++){
+  for(let f=0;f<8;f++){
+   a.push(String.fromCharCode(97+f)+(8-r));
+  }
+ }
+
+ return a;
+}
+
+function draw(){
+
+ const st=state();
+ const b=$('board');
+
+ b.innerHTML='';
+
+ let sqs=boardSquares();
+
+ if(flipped)sqs.reverse();
+
+ const files=[...'abcdefgh'];
+ const ranks=['8','7','6','5','4','3','2','1'];
+
+ const rf=$('rankRail');
+ const ff=$('fileRail');
+
+ if(rf){
+  rf.innerHTML=
+   (flipped?[...ranks].reverse():ranks)
+   .map(x=>`<span>${x}</span>`)
+   .join('');
+ }
+
+ if(ff){
+  ff.innerHTML=
+   (flipped?[...files].reverse():files)
+   .map(x=>`<span>${x}</span>`)
+   .join('');
+ }
+
+ for(const sq of sqs){
+
+  const f=sq.charCodeAt(0)-97;
+  const r=8-Number(sq[1]);
+
+  const d=document.createElement('div');
+
+  d.className=
+   'sq '+((f+r)%2?'dark':'light');
+
+  if(st.selected===sq){
+   d.classList.add('sel');
+  }
+
+  if(
+   st.lastMove &&
+   (
+    st.lastMove.from===sq ||
+    st.lastMove.to===sq
+   )
+  ){
+   d.classList.add('last');
+  }
+
+  const pc=st.game.get(sq);
+
+  if(pc){
+
+   const img=document.createElement('img');
+
+   img.src=PIECE(pc.color,pc.type);
+
+   img.onerror=()=>{
+
+    img.remove();
+
+    d.appendChild(
+     document.createTextNode(
+      {
+       p:'♟',
+       n:'♞',
+       b:'♝',
+       r:'♜',
+       q:'♛',
+       k:'♚'
+      }[pc.type]
+     )
+    );
+
+   };
+
+   d.appendChild(img);
+  }
+
+  d.onclick=()=>clickSq(sq);
+
+  b.appendChild(d);
+ }
+}
+
+function renderMoves(){
+
+ const arr=state().game.history();
+
+ $('moves').innerHTML=
+  arr.map((m,i)=>
+   `<span class="move">${Math.floor(i/2)+1}${i%2?'...':'.'} ${m}</span>`
+  ).join('');
+}
+
+function updateStatus(){
+
+ const st=state();
+ const g=st.game;
+
+ let txt;
+
+ if(g.in_checkmate()){
+
+  txt=
+   g.turn()==='w'
+    ? 'كش مات — Stockfish فاز'
+    : 'كش مات — أنت فز';
+
+ }
+ else if(g.in_draw()){
+
+  txt='تعادل';
+
+ }
+ else if(st.ended){
+
+  txt='انتهت المباراة';
+
+ }
+ else{
+
+  txt=
+   g.turn()==='w'
+    ? 'دورك'
+    : 'Stockfish يفكر...';
+ }
+
+ $('status').textContent=txt;
+
+ const end=g.game_over()||st.ended;
+
+ $('bestMove').disabled=
+  end ||
+  busy ||
+  g.turn()!=='w';
+
+ $('resign').disabled=
+  end ||
+  busy ||
+  g.turn()!=='w';
+}
+
+function explainMove(mv){
+
+ let s='نقلة جيدة، راقب تهديدات الخصم بعد كل نقلة.';
+
+ if(mv.captured){
+
+  s=
+   `أخذت ${mv.captured}. انتبه إلى الرد الإجباري وإعادة حساب حماية القطعة.`;
+ }
+
+ if(mv.san.includes('+')){
+
+  s=
+   'كش! النقلة تخلق تهديدًا مباشرًا، لكن يجب التأكد من الردود الإجبارية.';
+ }
+
+ $('explain').textContent=s;
+}
+
+function clickSq(sq){
+
+ const st=state();
+ const g=st.game;
+
+ if(
+  busy ||
+  g.game_over() ||
+  st.ended ||
+  g.turn()!=='w'
+ ){
+  return;
+ }
+
+ if(!st.selected){
+
+  if(g.get(sq)?.color==='w'){
+
+   st.selected=sq;
+
+   draw();
+  }
+
+  return;
+ }
+
+ const mv=g.move({
+  from:st.selected,
+  to:sq,
+  promotion:'q'
+ });
+
+ if(!mv){
+
+  if(g.get(sq)?.color==='w'){
+   st.selected=sq;
+  }
+  else{
+   st.selected=null;
+  }
+
+  draw();
+
+  return;
+ }
+
+ st.lastMove={
+  from:mv.from,
+  to:mv.to
+ };
+
+ st.selected=null;
+ busy=true;
+
+ renderMoves();
+ explainMove(mv);
+ draw();
+ updateStatus();
+
+ setTimeout(engineTurn,40);
+}
+
+function setEngineDebug(){
+
+ const i=lastInfo;
+
+ $('engineDebug').innerHTML=
+  `Engine: Stockfish 18 • `+
+  `Depth: ${i.depth||0} • `+
+  `Nodes: ${(i.nodes||0).toLocaleString()} • `+
+  `NPS: ${(i.nps||0).toLocaleString()}`;
+
+ if(i.wdl){
+  $('engineDebug').innerHTML+=
+   ` • WDL: ${i.wdl}`;
+ }
+
+ if(i.pv){
+
+  $('engineDebug').innerHTML+=
+   `<br><span class="best-line">PV: ${i.pv}</span>`;
+ }
+}
+
+function parseScore(x){
+
+ const m=x.match(/score (cp|mate) (-?\d+)/);
+
+ if(!m)return null;
+
+ return m[1]==='cp'
+  ? Number(m[2])
+  : (Number(m[2])>0?100000:-100000);
+}
+
+function applyStrength(w,level){
+
+ let skill=
+  Math.round(
+   (level-250)/
+   (3200-250)*
+   20
+  );
+
+ skill=
+  Math.max(
+   0,
+   Math.min(20,skill)
+  );
+
+ w.postMessage(
+  'setoption name Skill Level value '+skill
+ );
+
+ if(level>=3200){
+
+  w.postMessage(
+   'setoption name UCI_LimitStrength value false'
+  );
+
+ }
+ else if(level>=1300){
+
+  const elo=
+   Math.round(
+    Math.max(
+     1320,
+     Math.min(3190,level)
+    )
+   );
+
+  w.postMessage(
+   'setoption name UCI_LimitStrength value true'
+  );
+
+  w.postMessage(
+   'setoption name UCI_Elo value '+elo
+  );
+
+ }
+ else{
+
+  w.postMessage(
+   'setoption name UCI_LimitStrength value false'
+  );
+ }
+
+ w.postMessage(
+  'setoption name MultiPV value 1'
+ );
+
+ w.postMessage(
+  'setoption name Threads value 1'
+ );
+
+ w.postMessage(
+  'setoption name Hash value 48'
+ );
+}
+
+function makeSlot(url,index){
+
+ return new Promise((resolve,reject)=>{
+
+  let w;
+
+  try{
+   w=new Worker(url);
+  }
+  catch(e){
+   reject(e);
+   return;
+  }
+
+  const slot={
+   worker:w,
+   index:index,
+   url:url,
+   ready:false,
+   best:null,
+   info:{
+    depth:0,
+    score:0,
+    pv:'',
+    nodes:0,
+    nps:0,
+    lastChange:performance.now()
+   }
+  };
+
+  let settled=false;
+
+  function resolveReady(){
+
+   if(settled)return;
+
+   settled=true;
+   slot.ready=true;
+
+   resolve(slot);
+  }
+
+  function rejectReady(err){
+
+   if(settled)return;
+
+   settled=true;
+
+   try{
+    w.terminate();
+   }
+   catch{}
+
+   reject(err);
+  }
+
+  w.onerror=()=>{
+   rejectReady(
+    new Error('engine load failed')
+   );
+  };
+
+  w.onmessage=e=>{
+
+   handleEngineMessage(
+    slot,
+    String(e.data||'')
+   );
+  };
+
+  w.postMessage('uci');
+
+  const t=setTimeout(()=>{
+
+   if(!slot.ready){
+
+    rejectReady(
+     new Error('engine timeout')
+    );
+   }
+
+  },5000);
+
+  slot._resolveReady=()=>{
+
+   clearTimeout(t);
+   resolveReady();
+
+  };
+ });
+}
+
 function handleEngineMessage(slot,x){
- if(x==='uciok'){applyStrength(slot.worker,Number($('strength').value));slot.worker.postMessage('isready');return}
- if(x==='readyok'){slot.ready=true;slot._resolveReady?.();return}
- if(!x.startsWith('info')&&!x.startsWith('bestmove'))return;
+
+ if(x==='uciok'){
+
+  applyStrength(
+   slot.worker,
+   Number($('strength').value)
+  );
+
+  slot.worker.postMessage('isready');
+
+  return;
+ }
+
+ if(x==='readyok'){
+
+  slot.ready=true;
+
+  if(slot._resolveReady){
+   slot._resolveReady();
+  }
+
+  return;
+ }
+
+ if(
+  !x.startsWith('info') &&
+  !x.startsWith('bestmove')
+ ){
+  return;
+ }
+
  if(x.startsWith('info')){
-  const dm=x.match(/\\bdepth (\\d+)/),nm=x.match(/\\bnodes (\\d+)/),npsm=x.match(/\\bnps (\\d+)/),pvm=x.match(/\\spv\\s(.+)$/),score=parseScore(x);
-  if(dm)slot.info.depth=+dm[1];if(nm)slot.info.nodes=+nm[1];if(npsm)slot.info.nps=+npsm[1];if(score!==null){if(score!==slot.info.score||pvm?.[1]?.split(/\\s+/)[0]!==slot.info.pv)slot.info.lastChange=performance.now();slot.info.score=score}if(pvm)slot.info.pv=pvm[1].trim();
-  if(slot.index===0){lastInfo={...lastInfo,...slot.info,pv:slot.info.pv.split(/\\s+/)[0],stableMs:performance.now()-slot.info.lastChange};setEval(score);setEngineDebug()}
+
+  const dm=x.match(/\bdepth (\d+)/);
+  const nm=x.match(/\bnodes (\d+)/);
+  const npsm=x.match(/\bnps (\d+)/);
+  const pvm=x.match(/\spv\s(.+)$/);
+
+  const score=parseScore(x);
+
+  if(dm){
+   slot.info.depth=Number(dm[1]);
+  }
+
+  if(nm){
+   slot.info.nodes=Number(nm[1]);
+  }
+
+  if(npsm){
+   slot.info.nps=Number(npsm[1]);
+  }
+
+  if(score!==null){
+
+   if(
+    score!==slot.info.score ||
+    (
+     pvm &&
+     pvm[1] &&
+     pvm[1].split(/\s+/)[0]!==slot.info.pv
+    )
+   ){
+
+    slot.info.lastChange=
+     performance.now();
+   }
+
+   slot.info.score=score;
+  }
+
+  if(pvm){
+   slot.info.pv=
+    pvm[1].trim();
+  }
+
+  if(slot.index===0){
+
+   lastInfo={
+    ...lastInfo,
+    ...slot.info,
+    pv:slot.info.pv
+     .split(/\s+/)[0] || '',
+    stableMs:
+     performance.now()-
+     slot.info.lastChange
+   };
+
+   setEval(score);
+   setEngineDebug();
+  }
+
+  return;
  }
- if(x.startsWith('bestmove')&&pending&&pending.generation===searchGeneration){const u=x.split(/\\s+/)[1];slot.best=u?{uci:u,score:slot.info.score,depth:slot.info.depth,nodes:slot.info.nodes,nps:slot.info.nps,pv:slot.info.pv}:null;pending.finished++;if(pending.finished>=pending.expected)finishSearch()}}
-function setEval(score){if(score===null||score===undefined)return;$('eval').textContent=Math.abs(score)>=100000?`#${score>0?'∞':'−∞'}`:(score/100).toFixed(2)}
-async function initPool(){for(const s of enginePool){try{s.worker.terminate()}catch{}}enginePool=[];engineReady=false;
- const urls=['./vendor/stockfish-18-single.js','./vendor/stockfish-18-single.js','./vendor/stockfish-18-single.js'];
- for(let i=0;i<urls.length;i++){try{const s=await makeSlot(urls[i],i);enginePool.push(s)}catch(e){if(i===0){try{const s=await makeSlot('./vendor/stockfish-18-lite-single.js',0);enginePool.push(s)}catch{}}}}
- engineReady=enginePool.length>0;
+
+ /*
+  IMPORTANT:
+  Stockfish sends:
+  bestmove e7e5
+  or:
+  bestmove e7e5 ponder ...
+ */
+
+ if(x.startsWith('bestmove')){
+
+  if(
+   !pending ||
+   pending.generation!==searchGeneration
+  ){
+   return;
+  }
+
+  const parts=
+   x.trim().split(/\s+/);
+
+  const u=parts[1];
+
+  if(!u || u==='(none)'){
+
+   pending.finished++;
+
+   if(
+    pending.finished>=
+    pending.expected
+   ){
+    finishSearch(
+     pending.generation
+    );
+   }
+
+   return;
+  }
+
+  if(slot.best){
+   return;
+  }
+
+  slot.best={
+   uci:u,
+   score:slot.info.score,
+   depth:slot.info.depth,
+   nodes:slot.info.nodes,
+   nps:slot.info.nps,
+   pv:slot.info.pv
+  };
+
+  pending.finished++;
+
+  if(
+   pending.finished>=
+   pending.expected
+  ){
+
+   finishSearch(
+    pending.generation
+   );
+  }
+ }
 }
-function waitReady(){return engineReady?Promise.resolve(true):initPool().then(()=>engineReady)}
-function complexityBudget(g){
- const level=Number($('strength').value);
- const t=(level-250)/(3200-250);
- let ms=650+t*3850;
- if(mode==='beast')ms+=350;
- if(mode==='defense')ms+=250;
- if(g.in_check())ms+=700;
- if(g.history().length<12)ms+=250;
- const pieces=g.board().flat().filter(Boolean).length;
- if(pieces<=10)ms+=500;
- return Math.round(Math.min(5600,Math.max(500,ms)));
+
+function setEval(score){
+
+ if(
+  score===null ||
+  score===undefined
+ ){
+  return;
+ }
+
+ $('eval').textContent=
+  Math.abs(score)>=100000
+   ? `#${score>0?'∞':'−∞'}`
+   : (score/100).toFixed(2);
 }
-function finishSearch(){if(!pending)return;const p=pending;pending=null;clearTimeout(searchTimer);for(const s of enginePool)s.worker.postMessage('stop');
- const valid=enginePool.map(s=>s.best).filter(Boolean);if(!valid.length){p.resolve(null);return}
- valid.sort((a,b)=>(b.depth-a.depth)||(b.score-a.score));
- const primary=valid[0];const same=valid.filter(x=>x.uci===primary.uci).length;
- p.resolve({chosen:primary,candidates:valid,agreement:same,info:{...lastInfo},elapsed:performance.now()-p.started});}
-function searchEngine(fen,maxMs){return new Promise(async resolve=>{
- if(!(await waitReady())){resolve(null);return}
- searchGeneration++;
- const generation=searchGeneration;
+
+async function initPool(){
+
  for(const s of enginePool){
-  s.best=null;
-  s.info={depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()};
-  applyStrength(s.worker,Number($('strength').value));
-  s.worker.postMessage('position fen '+fen);
-  s.worker.postMessage('go movetime '+Math.max(300,Math.round(maxMs)));
+
+  try{
+   s.worker.terminate();
+  }
+  catch{}
  }
- pending={resolve,finished:0,expected:enginePool.length,generation,started:performance.now()};
+
+ enginePool=[];
+ engineReady=false;
+
+ const urls=[
+  './vendor/stockfish-18-single.js',
+  './vendor/stockfish-18-single.js',
+  './vendor/stockfish-18-single.js'
+ ];
+
+ for(let i=0;i<urls.length;i++){
+
+  try{
+
+   const s=
+    await makeSlot(
+     urls[i],
+     i
+    );
+
+   enginePool.push(s);
+
+  }
+  catch(e){
+
+   if(i===0){
+
+    try{
+
+     const s=
+      await makeSlot(
+       './vendor/stockfish-18-lite-single.js',
+       0
+      );
+
+     enginePool.push(s);
+
+    }
+    catch{}
+   }
+  }
+ }
+
+ engineReady=
+  enginePool.length>0;
+
+ return engineReady;
+}
+
+function waitReady(){
+
+ if(engineReady){
+  return Promise.resolve(true);
+ }
+
+ return initPool()
+  .then(()=>engineReady);
+}
+
+function complexityBudget(g){
+
+ const level=
+  Number($('strength').value);
+
+ const t=
+  (level-250)/
+  (3200-250);
+
+ let ms=
+  650+
+  t*3850;
+
+ if(mode==='beast'){
+  ms+=350;
+ }
+
+ if(mode==='defense'){
+  ms+=250;
+ }
+
+ if(g.in_check()){
+  ms+=700;
+ }
+
+ if(g.history().length<12){
+  ms+=250;
+ }
+
+ const pieces=
+  g.board()
+   .flat()
+   .filter(Boolean)
+   .length;
+
+ if(pieces<=10){
+  ms+=500;
+ }
+
+ return Math.round(
+  Math.min(
+   5600,
+   Math.max(
+    500,
+    ms
+   )
+  )
+ );
+}
+
+function finishSearch(generation){
+
+ if(
+  !pending ||
+  pending.generation!==generation
+ ){
+  return;
+ }
+
+ const p=pending;
+
+ pending=null;
+
  clearTimeout(searchTimer);
- searchTimer=setTimeout(()=>{if(pending&&pending.generation===generation) finishSearch()},Math.max(1500,Math.round(maxMs)+1200));
-})}
-function attackScore(uci,g){try{const c=new Chess(g.fen()),mv=c.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});if(!mv)return-999;let s=0;if(mv.san.includes('+'))s+=7;if(mv.captured)s+=2;if(mv.san.includes('#'))s+=100;return s}catch{return 0}}
-async function engineTurn(){const st=state(),g=st.game;if(g.game_over()||g.turn()!=='b'||st.ended){busy=false;updateStatus();return}if(!(await waitReady())){busy=false;$('status').textContent='تعذر تشغيل Stockfish';return}
- const limit=complexityBudget(g);$('status').textContent=`Stockfish يبحث...`;const r=await searchEngine(g.fen(),limit);if(!r?.chosen){busy=false;updateStatus();return}
- let chosen=r.chosen;if(mode!=='normal'&&r.candidates.length>1){const best=r.chosen.score,margin=mode==='beast'?90:45;const eligible=r.candidates.filter(x=>Math.abs(best-x.score)<=margin);if(eligible.length)chosen=eligible.sort((a,b)=>attackScore(b.uci,g)-attackScore(a.uci,g))[0]}
- const u=chosen.uci,mv=g.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});if(mv){st.lastMove={from:mv.from,to:mv.to};renderMoves();explainEngineMove(mv,mode,r)}busy=false;draw();updateStatus()}
-function explainEngineMove(mv,m,r){const agreement=r?.agreement||1;if(m==='beast')$('explain').textContent=mv.san.includes('+')?'👹 هجوم مباشر: كش وإجبار الملك على الرد.':'👹 الوحش يفضّل ضغطًا حادًا عندما يكون قريبًا في التقييم، مع إبقاء التكتيكات القوية متاحة.';else if(m==='defense')$('explain').textContent='🛡️ هذا الوضع يركز على الضغط والدفاع: ابحث عن التهديد التالي وحافظ على أمان الملك.';else $('explain').textContent=`🤖 Stockfish 18 اختار أقوى نقلة ضمن البحث. ${agreement>1?'اتفق '+agreement+' محركات بحث مستقلة على النقلة.':''}`}
-async function showBestMove(){const st=state(),g=st.game;if(busy||g.game_over()||g.turn()!=='w')return;busy=true;updateStatus();$('status').textContent='يحسب أفضل نقلة...';try{const r=await searchEngine(g.fen(),complexityBudget(g));const u=r?.chosen?.uci;if(u){const c=new Chess(g.fen()),mv=c.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});if(mv){$('explain').textContent=`💡 أفضل نقلة حاليًا: ${mv.san} — العمق ${r.info.depth}، ${(r.info.nodes||0).toLocaleString()} عقدة، ${Math.round(r.elapsed)}ms.`;}}}finally{busy=false;updateStatus()}}
-function resignGame(){const st=state();if(st.game.game_over()||st.ended)return;st.ended=true;busy=false;for(const s of enginePool)s.worker.postMessage('stop');$('status').textContent='🏳️ استسلمت — انتهت المباراة';$('explain').textContent='ابدأ مباراة جديدة أو اختر وضعًا آخر.';updateStatus()}
-function resetMode(m){modeState[m]={game:new Chess(),lastMove:null,selected:null,ended:false}}
-function switchMode(m){if(m===mode)return;for(const s of enginePool)s.worker.postMessage('stop');clearTimeout(searchTimer);busy=false;resetMode(m);mode=m;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===mode));$('hint').textContent=mode==='normal'?'⚔️ Stockfish: قوة 250–3200 مع بحث تكيفي وتكتيكي وزمن متدرج.':mode==='beast'?'👹 الوحش: ضغط وتكتيك وهجوم على الملك مع اختيار حاد بين النقلات القوية.':'🛡️ دفاع الوحش: يختبر قدرتك على الصمود أمام ضغط مستمر وتكتيكات قوية.';$('eval').textContent='+0.00';$('explain').textContent='💡 بدأت مباراة مستقلة لهذا الوضع.';renderMoves();draw();updateStatus();}
-$('strength').oninput=()=>{const v=Number($('strength').value);$('strengthValue').textContent=v;$('strengthNote').textContent=v>=3200?'3200 = أقصى قوة عملية. الرقم مستوى قوة مستهدف وليس Elo رسميًا.':`المستوى ${v}: هدف قوة تقريبي؛ القوة الفعلية تعتمد على الجهاز وموارد البحث.`;for(const s of enginePool)applyStrength(s.worker,v)};
-$('newGame').onclick=()=>{for(const s of enginePool)s.worker.postMessage('stop');resetMode(mode);busy=false;$('eval').textContent='+0.00';$('explain').textContent='💡 مباراة جديدة. حاول اكتشاف التهديد قبل النقلة.';renderMoves();draw();updateStatus()};
-$('flip').onclick=()=>{flipped=!flipped;draw()};$('bestMove').onclick=showBestMove;$('resign').onclick=resignGame;document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>switchMode(b.dataset.mode));
-initPool().then(()=>{draw();renderMoves();updateStatus()});draw();renderMoves();updateStatus();
-</script></body></html>
+
+ const valid=
+  enginePool
+   .map(s=>s.best)
+   .filter(Boolean);
+
+ for(const s of enginePool){
+
+  try{
+   s.worker.postMessage('stop');
+  }
+  catch{}
+ }
+
+ if(!valid.length){
+
+  p.resolve(null);
+
+  return;
+ }
+
+ valid.sort(
+  (a,b)=>
+   (b.depth-a.depth) ||
+   (b.score-a.score)
+ );
+
+ const primary=valid[0];
+
+ const same=
+  valid.filter(
+   x=>x.uci===primary.uci
+  ).length;
+
+ p.resolve({
+
+  chosen:primary,
+
+  candidates:valid,
+
+  agreement:same,
+
+  info:{
+   ...lastInfo,
+   depth:primary.depth,
+   score:primary.score,
+   nodes:primary.nodes,
+   nps:primary.nps,
+   pv:primary.pv
+  },
+
+  elapsed:
+   performance.now()-
+   p.started
+ });
+}
+
+function searchEngine(fen,maxMs){
+
+ return new Promise(async resolve=>{
+
+  if(!(await waitReady())){
+
+   resolve(null);
+
+   return;
+  }
+
+  searchGeneration++;
+
+  const generation=
+   searchGeneration;
+
+  /*
+   Cancel any old search.
+  */
+
+  if(pending){
+
+   const old=pending;
+
+   pending=null;
+
+   try{
+    old.resolve(null);
+   }
+   catch{}
+  }
+
+  for(const s of enginePool){
+
+   s.best=null;
+
+   s.info={
+    depth:0,
+    score:0,
+    pv:'',
+    nodes:0,
+    nps:0,
+    lastChange:performance.now()
+   };
+
+   applyStrength(
+    s.worker,
+    Number($('strength').value)
+   );
+
+   /*
+    Stop previous search before
+    setting the new position.
+   */
+
+   s.worker.postMessage('stop');
+
+   s.worker.postMessage(
+    'position fen '+fen
+   );
+ }
+
+ pending={
+  resolve:resolve,
+  finished:0,
+  expected:enginePool.length,
+  generation:generation,
+  started:performance.now()
+ };
+
+ /*
+  Give every engine the same search budget.
+ */
+
+ for(const s of enginePool){
+
+  s.worker.postMessage(
+   'go movetime '+
+   Math.max(
+    300,
+    Math.round(maxMs)
+   )
+  );
+ }
+
+ clearTimeout(searchTimer);
+
+ searchTimer=
+  setTimeout(()=>{
+
+   if(
+    pending &&
+    pending.generation===
+    generation
+   ){
+
+    finishSearch(
+     generation
+    );
+   }
+
+  },Math.max(
+   1500,
+   Math.round(maxMs)+1500
+  ));
+
+ });
+}
+
+function attackScore(uci,g){
+
+ try{
+
+  const c=
+   new Chess(g.fen());
+
+  const mv=
+   c.move({
+    from:uci.slice(0,2),
+    to:uci.slice(2,4),
+    promotion:uci[4]||'q'
+   });
+
+  if(!mv)return-999;
+
+  let s=0;
+
+  if(mv.san.includes('+')){
+   s+=7;
+  }
+
+  if(mv.captured){
+   s+=2;
+  }
+
+  if(mv.san.includes('#')){
+   s+=100;
+  }
+
+  return s;
+
+ }
+ catch{
+  return 0;
+ }
+}
+
+async function engineTurn(){
+
+ const st=state();
+ const g=st.game;
+
+ if(
+  g.game_over() ||
+  g.turn()!=='b' ||
+  st.ended
+ ){
+
+  busy=false;
+  updateStatus();
+
+  return;
+ }
+
+ if(!(await waitReady())){
+
+  busy=false;
+
+  $('status').textContent=
+   'تعذر تشغيل Stockfish';
+
+  return;
+ }
+
+ const limit=
+  complexityBudget(g);
+
+ $('status').textContent=
+  'Stockfish يبحث...';
+
+ const r=
+  await searchEngine(
+   g.fen(),
+   limit
+  );
+
+ /*
+  The player may have started a new game
+  while the old search was finishing.
+ */
+
+ if(
+  !r ||
+  !r.chosen ||
+  !r.chosen.uci
+ ){
+
+  busy=false;
+  updateStatus();
+
+  return;
+ }
+
+ /*
+  Make sure the position did not change
+  while Stockfish was thinking.
+ */
+
+ if(
+  g.fen()!==st.game.fen() ||
+  g.turn()!=='b' ||
+  st.ended
+ ){
+
+  busy=false;
+  updateStatus();
+
+  return;
+ }
+
+ let chosen=
+  r.chosen;
+
+ /*
+  Beast modes may choose a sharp move
+  only when it remains close to the
+  strongest engine result.
+ */
+
+ if(
+  mode!=='normal' &&
+  r.candidates.length>1
+ ){
+
+  const best=
+   r.chosen.score;
+
+  const margin=
+   mode==='beast'
+  

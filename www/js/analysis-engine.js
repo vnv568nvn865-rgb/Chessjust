@@ -46,17 +46,16 @@ class AnalysisEngine {
     this._loading = true;
     const errors = [];
     try {
-      // شغّل العمال بالتوازي. النسخة السابقة كانت تنتظر جاهزية العامل
-      // الأول بالكامل قبل إنشاء الثاني، لذلك على الهاتف البطيء كان المستخدم
-      // يرى "جاري التهيئة" لفترة طويلة بلا أي تقدم.
-      const attempts = await Promise.allSettled(
-        Array.from({ length: this.poolSize }, () => this._createSlot())
-      );
-      attempts.forEach(r => {
-        if (r.status === 'fulfilled') this.pool.push(r.value);
-        else errors.push(r.reason);
-      });
-      if (this.pool.length === 0) throw (errors[0] || new Error('تعذر تشغيل Stockfish'));
+      for (let i = 0; i < this.poolSize; i++) {
+        try {
+          const slot = await this._createSlot();
+          this.pool.push(slot);
+        } catch (e) {
+          errors.push(e);
+          if (this.pool.length === 0 && i === this.poolSize - 1) throw e;
+        }
+      }
+      if (this.pool.length === 0) throw errors[0];
       this.ready = true;
     } finally {
       this._loading = false;
@@ -439,7 +438,18 @@ class AnalysisEngine {
       weight += weightForMove;
     }
     if (weight === 0) return 0;
-    return Math.max(0, Math.min(100, total / weight));
+    const raw = total / weight;
+    // Small, bounded severity correction. CP-derived accuracy remains the
+    // primary signal; this only prevents several clearly bad classifications
+    // from averaging back into an implausibly high score.
+    const playerMoves = classifications.filter(c =>
+      (c.mover === mover) || (!c.mover && c.isPlayer)
+    );
+    const blunders = playerMoves.filter(c => c.type === 'blunder').length;
+    const mistakes = playerMoves.filter(c => c.type === 'mistake').length;
+    const inaccuracies = playerMoves.filter(c => c.type === 'inaccuracy').length;
+    const severityPenalty = Math.min(10, blunders * 2.5 + mistakes * 0.8 + inaccuracies * 0.2);
+    return Math.max(0, Math.min(100, raw - severityPenalty));
   }
 
   /* ══════════════════════════════════════

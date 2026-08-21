@@ -6,208 +6,87 @@
 <div class="strength"><div class="strength-row"><label for="strength">قوة المحرك</label><input id="strength" type="range" min="250" max="3200" step="10" value="3200"><div class="strength-value" id="strengthValue">3200</div></div><div class="strength-note" id="strengthNote">3200 = أقصى قوة عملية. الرقم مستوى قوة مستهدف وليس Elo رسميًا.</div></div>
 <div class="game"><div><div class="board-shell"><div class="rank-rail" id="rankRail"></div><div><div class="file-rail" id="fileRail"></div><div id="board" class="board"></div></div></div><div class="actions"><button class="primary" id="newGame">🔄 مباراة جديدة</button><button id="flip">↔️ قلب الرقعة</button><button id="bestMove">💡 أفضل نقلة</button><button id="resign">🏳️ استسلام</button></div></div>
 <div class="side"><div id="status" class="status">اختر نقلة</div><div id="eval" class="eval">+0.00</div><div id="hint" class="hint">Stockfish يبحث بأقصى قوة عملية ضمن المستوى المختار، ولا يتوقف لمجرد الوصول إلى رقم زمني ثابت.</div><div class="explain" id="explain">💡 بعد المواقف المهمة سيظهر شرح محلي يوضح التهديد أو سبب أفضل رد، بدون API خارجي.</div><div class="engine-debug" id="engineDebug"></div><div class="moves" id="moves"></div></div></div></div>
-<script src="./vendor/chess.min.js"></script><script>
+<script src="./vendor/chess.min.js"></script><script src="./js/analysis-engine.js"></script><script>
 'use strict';
 const PIECE=(c,t)=>`./vendor/pieces/${c}${t.toUpperCase()}.svg`;
 const MODES=['normal','beast','defense'];
 const modeState={};
 for(const m of MODES) modeState[m]={game:new Chess(),lastMove:null,selected:null,ended:false};
 let mode='normal',flipped=false,busy=false;
-let enginePool=[],engineReady=false,pending=null,searchGeneration=0,searchTimer=null;
-let lastInfo={depth:0,score:0,pv:'',nodes:0,nps:0,stableMs:0,lastChange:0,wdl:null};
-const $=id=>document.getElementById(id);
-function state(){return modeState[mode]}
-function boardSquares(){const a=[];for(let r=0;r<8;r++)for(let f=0;f<8;f++)a.push(String.fromCharCode(97+f)+(8-r));return a}
-function draw(){const st=state(),b=$('board');b.innerHTML='';let sqs=boardSquares();if(flipped)sqs.reverse();
- const files=[...'abcdefgh'],ranks=['8','7','6','5','4','3','2','1'],rf=$('rankRail'),ff=$('fileRail');
- if(rf)rf.innerHTML=(flipped?[...ranks].reverse():ranks).map(x=>`<span>${x}</span>`).join('');
- if(ff)ff.innerHTML=(flipped?[...files].reverse():files).map(x=>`<span>${x}</span>`).join('');
- for(const sq of sqs){const f=sq.charCodeAt(0)-97,r=8-Number(sq[1]),d=document.createElement('div');d.className='sq '+((f+r)%2?'dark':'light');
-  if(st.selected===sq)d.classList.add('sel');if(st.lastMove&&(st.lastMove.from===sq||st.lastMove.to===sq))d.classList.add('last');
-  const pc=st.game.get(sq);if(pc){const img=document.createElement('img');img.src=PIECE(pc.color,pc.type);img.onerror=()=>{img.remove();d.appendChild(document.createTextNode({p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'}[pc.type]))};d.appendChild(img)}
-  d.onclick=()=>clickSq(sq);b.appendChild(d)}}
-function renderMoves(){const arr=state().game.history();$('moves').innerHTML=arr.map((m,i)=>`<span class="move">${Math.floor(i/2)+1}${i%2?'...':'.'} ${m}</span>`).join('')}
-function updateStatus(){const st=state(),g=st.game;let txt=g.in_checkmate()?(g.turn()==='w'?'كش مات — Stockfish فاز':'كش مات — أنت فز'):g.in_draw()?'تعادل':st.ended?'انتهت المباراة':g.turn()==='w'?'دورك':'Stockfish يفكر...';$('status').textContent=txt;
- const end=g.game_over()||st.ended;$('bestMove').disabled=end||busy||g.turn()!=='w';$('resign').disabled=end||busy||g.turn()!=='w'}
-function explainMove(mv){let s='نقلة جيدة، راقب تهديدات الخصم بعد كل نقلة.';if(mv.captured)s=`أخذت ${mv.captured}. انتبه إلى الرد الإجباري وإعادة حساب حماية القطعة.`;if(mv.san.includes('+'))s='كش! النقلة تخلق تهديدًا مباشرًا، لكن يجب التأكد من الردود الإجبارية.';$('explain').textContent=s}
-function clickSq(sq){const st=state(),g=st.game;if(busy||g.game_over()||st.ended||g.turn()!=='w')return;
- if(!st.selected){if(g.get(sq)?.color==='w'){st.selected=sq;draw()}return}
- const mv=g.move({from:st.selected,to:sq,promotion:'q'});if(!mv){if(g.get(sq)?.color==='w')st.selected=sq;else st.selected=null;draw();return}
- st.lastMove={from:mv.from,to:mv.to};st.selected=null;busy=true;renderMoves();explainMove(mv);draw();updateStatus();setTimeout(engineTurn,40)}
-function setEngineDebug(){const i=lastInfo;$('engineDebug').innerHTML=`Engine: Stockfish 18 • Depth: ${i.depth||0} • Nodes: ${(i.nodes||0).toLocaleString()} • NPS: ${(i.nps||0).toLocaleString()} • ${i.wdl?'WDL: '+i.wdl:''}`;if(i.pv)$('engineDebug').innerHTML+=`<br><span class="best-line">PV: ${i.pv}</span>`}
-
-function parseScore(x){
- const m=x.match(/score (cp|mate) (-?\d+)/);
- if(!m)return null;
- return m[1]==='cp'?Number(m[2]):(Number(m[2])>0?100000:-100000);
+let engine=null,engineReady=false,busy=false,engineInfo={};
+function setEngineDebug(r){
+ const i=r||{};
+ const pv=Array.isArray(i.pv)?i.pv.join(' '):(i.pv||'');
+ $('engineDebug').innerHTML=`Engine: Stockfish 18 • Depth: ${i.depth||0} • Nodes: ${(i.nodes||0).toLocaleString()} • Time: ${i.time||0}ms`+(pv?`<br><span class="best-line">PV: ${pv}</span>`:'');
 }
-function applyStrength(w,level){
- let skill=Math.round((level-250)/(3200-250)*20);
- skill=Math.max(0,Math.min(20,skill));
+function setEvalResult(r){
+ if(!r)return;
+ if(typeof r.mate==='number') $('eval').textContent=`#${r.mate>0?'∞':'−∞'}`;
+ else if(typeof r.cp==='number') $('eval').textContent=(r.cp/100).toFixed(2);
+ setEngineDebug(r);
+}
+async function initEngine(){
  try{
-  w.postMessage('setoption name Skill Level value '+skill);
-  w.postMessage('setoption name UCI_LimitStrength value '+(level>=3200?'false':'true'));
-  if(level<3200 && level>=1300) w.postMessage('setoption name UCI_Elo value '+Math.round(level));
-  w.postMessage('setoption name Hash value 32');
-  w.postMessage('setoption name MultiPV value 1');
- }catch(e){showEngineError('setoption: '+e.message)}
-}
-function debug(msg){
- const el=$('engineDebug');
- if(el)el.textContent=String(msg);
- console.log('[Chessjust Engine]',msg);
-}
-function showEngineError(msg){
- debug('❌ Engine error: '+msg);
- $('status').textContent='خطأ في تشغيل Stockfish';
- $('explain').textContent='⚠️ '+msg;
-}
-function makeEngine(){
- return new Promise((resolve,reject)=>{
-  const url='./vendor/stockfish-18-single.js';
-  let w;
-  try{w=new Worker(url)}catch(e){reject(e);return}
-  const slot={
-   worker:w,ready:false,uci:false,best:null,
-   info:{depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()},
-   resolveReady:null
-  };
-  let settled=false;
-  const fail=e=>{
-   if(settled)return;
-   settled=true;
-   try{w.terminate()}catch{}
-   reject(e instanceof Error?e:new Error(String(e)));
-  };
-  const readyTimeout=setTimeout(()=>fail(new Error('لم يصل readyok خلال 8 ثوانٍ')),8000);
-
-  w.onerror=e=>{
-   clearTimeout(readyTimeout);
-   const msg=(e&&e.message)||'Worker error';
-   fail(new Error(msg+' — تحقق من vendor/stockfish-18-single.js و vendor/stockfish-18-single.wasm'));
-  };
-
-  w.onmessage=e=>{
-   const x=String(e.data||'');
-   if(x==='uciok'){
-    slot.uci=true;
-    applyStrength(w,Number($('strength').value));
-    w.postMessage('isready');
-    return;
-   }
-   if(x==='readyok'){
-    slot.ready=true;
-    clearTimeout(readyTimeout);
-    if(!settled){settled=true;resolve(slot)}
-    return;
-   }
-   if(x.startsWith('info')){
-    const dm=x.match(/\bdepth (\d+)/),nm=x.match(/\bnodes (\d+)/),npsm=x.match(/\bnps (\d+)/),pvm=x.match(/\spv\s(.+)$/),score=parseScore(x);
-    if(dm)slot.info.depth=+dm[1];
-    if(nm)slot.info.nodes=+nm[1];
-    if(npsm)slot.info.nps=+npsm[1];
-    if(score!==null)slot.info.score=score;
-    if(pvm)slot.info.pv=pvm[1].trim();
-    lastInfo={...lastInfo,...slot.info,pv:slot.info.pv.split(/\s+/)[0]};
-    setEval(score);setEngineDebug();
-    return;
-   }
-   if(x.startsWith('bestmove')){
-    const u=x.split(/\s+/)[1];
-    if(pending && pending.generation===searchGeneration){
-     pending.best=u&&u!=='(none)'&&u!=='0000'?{uci:u,score:slot.info.score,depth:slot.info.depth,nodes:slot.info.nodes,nps:slot.info.nps,pv:slot.info.pv}:null;
-     finishSearch(true);
-    }
-   }
-  };
-  w.postMessage('uci');
- });
-}
-async function initPool(){
- if(enginePool[0]?.ready)return true;
- for(const s of enginePool){try{s.worker.terminate()}catch{}}
- enginePool=[];engineReady=false;
- try{
-  debug('⏳ تحميل Stockfish 18...');
-  const slot=await makeEngine();
-  enginePool=[slot];engineReady=true;
-  debug('✅ Stockfish 18 جاهز');
-  return true;
+   engine=new AnalysisEngine({stockfishPath:'./vendor/stockfish-18-single.js',poolSize:1});
+   await engine.initialize();
+   engine.setCustomNodes(500000);
+   engineReady=true;
+   $('engineDebug').textContent='Stockfish 18 جاهز — محرك اللعب متصل.';
  }catch(e){
-  engineReady=false;
-  showEngineError(e.message||e);
-  return false;
+   engineReady=false;
+   $('engineDebug').textContent='ENGINE ERROR: '+(e?.message||String(e));
+   $('status').textContent='تعذر تشغيل Stockfish';
+   console.error(e);
  }
 }
-function waitReady(){return engineReady?Promise.resolve(true):initPool()}
-function complexityBudget(g){
+function nodesForGame(g){
  const level=Number($('strength').value);
- const base=mode==='normal'?1800:mode==='beast'?2400:2200;
- const scaled=base+((level-250)/(3200-250))*4800;
- let extra=0;
- if(g.in_check()||g.history().length<12)extra+=400;
- const pieces=g.board().flat().filter(Boolean).length;
- if(pieces<=10)extra+=600;
- return Math.round(Math.min(7600,Math.max(900,scaled+extra)));
+ // Map UI strength to search effort. 3200 means unrestricted practical strength.
+ let n=50000 + Math.round(((level-250)/(3200-250))*950000);
+ if(mode==='beast') n+=150000;
+ if(mode==='defense') n+=100000;
+ if(g.in_check()) n+=150000;
+ return Math.max(50000,Math.min(1200000,n));
 }
-function finishSearch(force=false){
- if(!pending)return;
- const p=pending;
- clearTimeout(searchTimer);
- clearTimeout(searchGraceTimer);
- const best=enginePool[0]?.best;
- if(!best && !force){
-  searchGraceTimer=setTimeout(()=>finishSearch(true),1200);
-  return;
- }
- pending=null;
- try{enginePool[0]?.worker.postMessage('stop')}catch{}
- if(!best){p.resolve(null);return}
- p.resolve({
-  chosen:best,candidates:[best],agreement:1,
-  info:{...lastInfo},
-  elapsed:performance.now()-p.started
- });
+async function searchPosition(fen,g){
+ if(!engineReady){await initEngine();if(!engineReady)return null;}
+ const r=await engine.queryPosition(fen,nodesForGame(g));
+ setEvalResult(r);
+ return r;
 }
-function searchEngine(fen,maxMs){
- return new Promise(async resolve=>{
-  if(!(await waitReady())){resolve(null);return}
-  searchGeneration++;
-  const generation=searchGeneration;
-  pending={resolve,generation,started:performance.now(),best:null};
-  clearTimeout(searchTimer);clearTimeout(searchGraceTimer);
-  const slot=enginePool[0];
-  slot.best=null;
-  slot.info={depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()};
-  try{
-   slot.worker.postMessage('stop');
-   slot.worker.postMessage('ucinewgame');
-   applyStrength(slot.worker,Number($('strength').value));
-   slot.worker.postMessage('position fen '+fen);
-   slot.worker.postMessage('go movetime '+maxMs);
-   debug('🔎 يبحث... '+maxMs+'ms');
-  }catch(e){
-   pending=null;showEngineError('بدء البحث: '+e.message);resolve(null);return;
-  }
-  searchTimer=setTimeout(()=>{
-   if(!pending||pending.generation!==generation)return;
-   try{slot.worker.postMessage('stop')}catch{}
-   searchGraceTimer=setTimeout(()=>finishSearch(true),1500);
-  },maxMs);
- });
+async function engineTurn(){
+ const st=state(),g=st.game;
+ if(g.game_over()||g.turn()!=='b'||st.ended){busy=false;updateStatus();return;}
+ busy=true;$('status').textContent='Stockfish يحسب أقوى نقلة...';
+ try{
+   const r=await searchPosition(g.fen(),g);
+   if(!r?.bestmove){$('status').textContent='لم يُرجع Stockfish نقلة';return;}
+   const u=r.bestmove;
+   const mv=g.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});
+   if(!mv){$('status').textContent='Stockfish أعاد نقلة غير صالحة';return;}
+   st.lastMove={from:mv.from,to:mv.to};
+   renderMoves();
+   explainEngineMove(mv,mode,r);
+ }catch(e){
+   $('engineDebug').textContent='ENGINE ERROR: '+(e?.message||String(e));
+   $('status').textContent='حدث خطأ أثناء تفكير Stockfish';
+ }finally{busy=false;draw();updateStatus();}
 }
-function attackScore(uci,g){try{const c=new Chess(g.fen()),mv=c.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});if(!mv)return-999;let s=0;if(mv.san.includes('+'))s+=7;if(mv.captured)s+=2;if(mv.san.includes('#'))s+=100;return s}catch{return 0}}
-async function engineTurn(){const st=state(),g=st.game;if(g.game_over()||g.turn()!=='b'||st.ended){busy=false;updateStatus();return}if(!(await waitReady())){busy=false;$('status').textContent='تعذر تشغيل Stockfish';return}
- const limit=complexityBudget(g);$('status').textContent=`Stockfish يبحث...`;const r=await searchEngine(g.fen(),limit);if(!r?.chosen){busy=false;updateStatus();return}
- let chosen=r.chosen;if(mode!=='normal'&&r.candidates.length>1){const best=r.chosen.score,margin=mode==='beast'?90:45;const eligible=r.candidates.filter(x=>Math.abs(best-x.score)<=margin);if(eligible.length)chosen=eligible.sort((a,b)=>attackScore(b.uci,g)-attackScore(a.uci,g))[0]}
- const u=chosen.uci,mv=g.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});if(mv){st.lastMove={from:mv.from,to:mv.to};renderMoves();explainEngineMove(mv,mode,r)}busy=false;draw();updateStatus()}
-function explainEngineMove(mv,m,r){const agreement=r?.agreement||1;if(m==='beast')$('explain').textContent=mv.san.includes('+')?'👹 هجوم مباشر: كش وإجبار الملك على الرد.':'👹 الوحش يفضّل ضغطًا حادًا عندما يكون قريبًا في التقييم، مع إبقاء التكتيكات القوية متاحة.';else if(m==='defense')$('explain').textContent='🛡️ هذا الوضع يركز على الضغط والدفاع: ابحث عن التهديد التالي وحافظ على أمان الملك.';else $('explain').textContent=`🤖 Stockfish 18 اختار أقوى نقلة ضمن البحث. ${agreement>1?'اتفق '+agreement+' محركات بحث مستقلة على النقلة.':''}`}
-async function showBestMove(){const st=state(),g=st.game;if(busy||g.game_over()||g.turn()!=='w')return;busy=true;updateStatus();$('status').textContent='يحسب أفضل نقلة...';try{const r=await searchEngine(g.fen(),complexityBudget(g));const u=r?.chosen?.uci;if(u){const c=new Chess(g.fen()),mv=c.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});if(mv){$('explain').textContent=`💡 أفضل نقلة حاليًا: ${mv.san} — العمق ${r.info.depth}، ${(r.info.nodes||0).toLocaleString()} عقدة، ${Math.round(r.elapsed)}ms.`;}}}finally{busy=false;updateStatus()}}
-function resignGame(){const st=state();if(st.game.game_over()||st.ended)return;st.ended=true;busy=false;for(const s of enginePool)s.worker.postMessage('stop');$('status').textContent='🏳️ استسلمت — انتهت المباراة';$('explain').textContent='ابدأ مباراة جديدة أو اختر وضعًا آخر.';updateStatus()}
-function resetMode(m){modeState[m]={game:new Chess(),lastMove:null,selected:null,ended:false}}
-function switchMode(m){if(m===mode)return;for(const s of enginePool)s.worker.postMessage('stop');clearTimeout(searchTimer);busy=false;resetMode(m);mode=m;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===mode));$('hint').textContent=mode==='normal'?'⚔️ Stockfish: قوة 250–3200 مع بحث تكيفي وتكتيكي.':mode==='beast'?'👹 الوحش: ضغط وتكتيك وهجوم على الملك مع اختيار حاد بين النقلات القوية.':'🛡️ دفاع الوحش: يختبر قدرتك على الصمود أمام ضغط مستمر وتكتيكات قوية.';$('eval').textContent='+0.00';$('explain').textContent='💡 بدأت مباراة مستقلة لهذا الوضع.';renderMoves();draw();updateStatus();}
-$('strength').oninput=()=>{const v=Number($('strength').value);$('strengthValue').textContent=v;$('strengthNote').textContent=v>=3200?'3200 = أقصى قوة عملية. الرقم مستوى قوة مستهدف وليس Elo رسميًا.':`المستوى ${v}: هدف قوة تقريبي؛ القوة الفعلية تعتمد على الجهاز وموارد البحث.`;for(const s of enginePool)applyStrength(s.worker,v)};
-$('newGame').onclick=()=>{for(const s of enginePool)s.worker.postMessage('stop');resetMode(mode);busy=false;$('eval').textContent='+0.00';$('explain').textContent='💡 مباراة جديدة. حاول اكتشاف التهديد قبل النقلة.';renderMoves();draw();updateStatus()};
+function explainEngineMove(mv,m,r){
+ if(m==='beast') $('explain').textContent=mv.san.includes('+')?'👹 هجوم مباشر: كش وإجبار الملك على الرد.':'👹 الوحش اختار نقلة نشطة مع الحفاظ على التقييم التكتيكي.';
+ else if(m==='defense') $('explain').textContent='🛡️ هذا الوضع يركز على الضغط والدفاع وإجبارك على إيجاد الردود الدقيقة.';
+ else $('explain').textContent=`🤖 Stockfish 18 اختار أقوى نقلة بعد بحث ${((r?.nodes||0)/1000).toFixed(0)} ألف عقدة.`;
+}
+async function showBestMove(){
+ const st=state(),g=st.game;if(busy||g.game_over()||g.turn()!=='w')return;
+ busy=true;updateStatus();$('status').textContent='يحسب أفضل نقلة...';
+ try{const r=await searchPosition(g.fen(),g);if(r?.bestmove){const c=new Chess(g.fen()),mv=c.move({from:r.bestmove.slice(0,2),to:r.bestmove.slice(2,4),promotion:r.bestmove[4]||'q'});if(mv)$('explain').textContent=`💡 أفضل نقلة: ${mv.san} — العمق ${r.depth||0}، ${(r.nodes||0).toLocaleString()} عقدة.`;}}
+ catch(e){$('engineDebug').textContent='ENGINE ERROR: '+(e?.message||String(e));}
+ finally{busy=false;updateStatus();}
+}
+function stopEngine(){try{for(const s of (engine?.pool||[]))s.worker.postMessage('stop')}catch(e){}}
+$('strength').oninput=()=>{const v=Number($('strength').value);$('strengthValue').textContent=v;$('strengthNote').textContent=v>=3200?'3200 = أقصى قوة عملية. الرقم مستوى قوة مستهدف وليس Elo رسميًا.':`المستوى ${v}: هدف قوة تقريبي؛ القوة الفعلية تعتمد على موارد البحث.`};
+$('newGame').onclick=()=>{stopEngine();resetMode(mode);busy=false;$('eval').textContent='+0.00';$('explain').textContent='💡 مباراة جديدة. حاول اكتشاف التهديد قبل النقلة.';renderMoves();draw();updateStatus()};
 $('flip').onclick=()=>{flipped=!flipped;draw()};$('bestMove').onclick=showBestMove;$('resign').onclick=resignGame;document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>switchMode(b.dataset.mode));
-initPool().then(()=>{draw();renderMoves();updateStatus()});draw();renderMoves();updateStatus();
+initEngine().finally(()=>{draw();renderMoves();updateStatus()});draw();renderMoves();updateStatus();
 </script></body></html>

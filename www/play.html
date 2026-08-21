@@ -13,7 +13,7 @@ const MODES=['normal','beast','defense'];
 const modeState={};
 for(const m of MODES) modeState[m]={game:new Chess(),lastMove:null,selected:null,ended:false};
 let mode='normal',flipped=false,busy=false;
-let enginePool=[],engineReady=false,pending=null,searchGeneration=0,searchTimer=null;
+let enginePool=[],engineReady=false,pending=null,searchGeneration=0,searchTimer=null,searchGraceTimer=null;
 let lastInfo={depth:0,score:0,pv:'',nodes:0,nps:0,stableMs:0,lastChange:0,wdl:null};
 const $=id=>document.getElementById(id);
 function state(){return modeState[mode]}
@@ -56,7 +56,7 @@ function handleEngineMessage(slot,x){
   if(dm)slot.info.depth=+dm[1];if(nm)slot.info.nodes=+nm[1];if(npsm)slot.info.nps=+npsm[1];if(score!==null){if(score!==slot.info.score||pvm?.[1]?.split(/\s+/)[0]!==slot.info.pv)slot.info.lastChange=performance.now();slot.info.score=score}if(pvm)slot.info.pv=pvm[1].trim();
   if(slot.index===0){lastInfo={...lastInfo,...slot.info,pv:slot.info.pv.split(/\s+/)[0],stableMs:performance.now()-slot.info.lastChange};setEval(score);setEngineDebug()}
  }
- if(x.startsWith('bestmove')&&pending&&pending.generation===searchGeneration){const u=x.split(/\s+/)[1];slot.best=u?{uci:u,score:slot.info.score,depth:slot.info.depth,nodes:slot.info.nodes,nps:slot.info.nps,pv:slot.info.pv}:null;pending.finished++;if(pending.finished>=pending.expected)finishSearch()}}
+ if(x.startsWith('bestmove')&&pending&&pending.generation===searchGeneration){const u=x.split(/\s+/)[1];slot.best=u&&u!=='(none)'&&u!=='0000'?{uci:u,score:slot.info.score,depth:slot.info.depth,nodes:slot.info.nodes,nps:slot.info.nps,pv:slot.info.pv}:null;pending.finished++;if(pending.stopRequested||pending.finished>=pending.expected)finishSearch()}}
 function setEval(score){if(score===null||score===undefined)return;$('eval').textContent=Math.abs(score)>=100000?`#${score>0?'∞':'−∞'}`:(score/100).toFixed(2)}
 async function initPool(){for(const s of enginePool){try{s.worker.terminate()}catch{}}enginePool=[];engineReady=false;
  const urls=['./vendor/stockfish-18-single.js'];
@@ -71,33 +71,42 @@ function complexityBudget(g){const level=Number($('strength').value);const base=
 function finishSearch(force=false){
  if(!pending)return;
  const p=pending;
- if(!force&&p.finished<p.expected)return;
- pending=null;clearTimeout(searchTimer);
+ clearTimeout(searchTimer);
+ clearTimeout(searchGraceTimer);
  const valid=enginePool.map(s=>s.best).filter(Boolean);
+ if(!valid.length && !force){
+   searchGraceTimer=setTimeout(()=>finishSearch(true),800);
+   return;
+ }
+ pending=null;
+ for(const s of enginePool){try{s.worker.postMessage('stop')}catch{}}
  if(!valid.length){p.resolve(null);return}
  valid.sort((a,b)=>(b.depth-a.depth)||(b.score-a.score));
  const primary=valid[0];
  const same=valid.filter(x=>x.uci===primary.uci).length;
- p.resolve({chosen:primary,candidates:valid,agreement:same,info:{...lastInfo},elapsed:performance.now()-p.started});}
+ p.resolve({chosen:primary,candidates:valid,agreement:same,info:{...lastInfo},elapsed:performance.now()-p.started});
+}
 function searchEngine(fen,maxMs){return new Promise(async resolve=>{
  if(!(await waitReady())){resolve(null);return}
  searchGeneration++;
  const generation=searchGeneration;
- pending={resolve,finished:0,expected:enginePool.length,generation,started:performance.now(),timedOut:false};
- clearTimeout(searchTimer);
+ pending={resolve,finished:0,expected:enginePool.length,generation,started:performance.now(),stopRequested:false};
+ clearTimeout(searchTimer);clearTimeout(searchGraceTimer);
  for(const s of enginePool){
-  s.best=null;s.info={depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()};
-  applyStrength(s.worker,Number($('strength').value));
-  s.worker.postMessage('ucinewgame');
-  s.worker.postMessage('position fen '+fen);
-  s.worker.postMessage('go infinite');
+   s.best=null;s.info={depth:0,score:0,pv:'',nodes:0,nps:0,lastChange:performance.now()};
+   try{
+     s.worker.postMessage('stop');
+     s.worker.postMessage('ucinewgame');
+     applyStrength(s.worker,Number($('strength').value));
+     s.worker.postMessage('position fen '+fen);
+     s.worker.postMessage('go infinite');
+   }catch{}
  }
  searchTimer=setTimeout(()=>{
-  if(!pending||pending.generation!==generation)return;
-  pending.timedOut=true;
-  for(const s of enginePool)s.worker.postMessage('stop');
-  clearTimeout(searchTimer);
-  searchTimer=setTimeout(()=>{if(pending&&pending.generation===generation)finishSearch(true)},700);
+   if(!pending||pending.generation!==generation)return;
+   pending.stopRequested=true;
+   for(const s of enginePool){try{s.worker.postMessage('stop')}catch{}}
+   searchGraceTimer=setTimeout(()=>finishSearch(true),900);
  },maxMs);
 })}
 function attackScore(uci,g){try{const c=new Chess(g.fen()),mv=c.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci[4]||'q'});if(!mv)return-999;let s=0;if(mv.san.includes('+'))s+=7;if(mv.captured)s+=2;if(mv.san.includes('#'))s+=100;return s}catch{return 0}}

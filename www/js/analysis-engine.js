@@ -283,14 +283,22 @@ class AnalysisEngine {
     return Math.max(0, Math.min(1, best - after));
   }
 
-  // CAPS2-like grading: expected-points loss is the primary signal.
-  // This is intentionally our own transparent model, not a claim to reproduce
-  // Chess.com's private formula.
+  // CAPS2-inspired accuracy model. Chess.com publishes the Expected Points
+  // model and move-loss bands, but its exact CAPS2 accuracy formula is private.
+  // We therefore use the same public signal (expected-points loss) with a
+  // transparent, deliberately stricter calibration so ordinary mistakes do not
+  // collapse into 98-100% games.
   static moveAccuracy(cpLoss, beforeWhiteCp, afterWhiteCp, mover='w') {
     const loss = AnalysisEngine.expectedLoss(beforeWhiteCp, afterWhiteCp, mover);
     if (loss === null) return null;
-    const accuracy = 100 * Math.pow(Math.max(0, 1 - loss), 0.65);
-    return Math.max(0, Math.min(100, accuracy));
+
+    // Public Chess.com bands: 0-.02 Excellent, .02-.05 Good, .05-.10
+    // Inaccuracy, .10-.20 Mistake, .20+ Blunder. We map those same bands to
+    // a continuous score. The exponent makes losses grow progressively more
+    // expensive instead of allowing a single blunder to hide inside a 99%.
+    const normalized = Math.min(1, Math.max(0, loss / 0.20));
+    const score = 100 * Math.pow(1 - normalized, 1.45);
+    return Math.max(0, Math.min(100, score));
   }
 
   static _boardFromFen(fen) {
@@ -373,8 +381,20 @@ class AnalysisEngine {
   static colors() { return {brilliant:'#37c6e0',best:'#5f9e6e',great:'#7fb87a',excellent:'#9fc98a',good:'#b5d4a0',inaccuracy:'#d9b64e',mistake:'#d98a3f',blunder:'#c95a4a',unrated:'#8c8175'}; }
 
   static gameAccuracy(classifications, mover) {
-    const vals = (classifications || []).filter(c => c && c.mover === mover && typeof c.moveAcc === 'number').map(c => c.moveAcc);
-    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+    const vals = (classifications || []).filter(c => c && c.mover === mover && typeof c.moveAcc === 'number');
+    if (!vals.length) return 0;
+
+    // Critical errors deserve more weight than routine precise moves. This is
+    // intentionally transparent and rating-neutral; it is not claimed to be
+    // Chess.com's private CAPS2 formula.
+    let weighted = 0, weightTotal = 0;
+    for (const c of vals) {
+      const loss = typeof c.expectedLoss === 'number' ? c.expectedLoss : 0;
+      const weight = 1 + 20 * Math.min(1, Math.max(0, loss));
+      weighted += c.moveAcc * weight;
+      weightTotal += weight;
+    }
+    return weightTotal ? weighted / weightTotal : 0;
   }
   static formatETA(done,total,elapsedMs) { if(!done||!total) return '...'; const rem=((total-done)/done)*elapsedMs; return rem<60000?`${Math.ceil(rem/1000)}ث`:`${Math.ceil(rem/60000)}د`; }
   static formatNPS(nodes,elapsedMs) { if(!nodes||elapsedMs<200) return '—'; const nps=nodes/(elapsedMs/1000); return nps>=1e6?`${(nps/1e6).toFixed(1)}M/ث`:nps>=1000?`${Math.round(nps/1000)}K/ث`:`${Math.round(nps)}/ث`; }

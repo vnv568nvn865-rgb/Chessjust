@@ -1219,8 +1219,9 @@ window.addEventListener('popstate', (e) => {
     if (tab === 'board' && S.fens.length) setTimeout(() => drawBoard(S.fens[S.board.idx]), 10);
     if (tab === 'err') loadPatterns();
   } else {
-    // لا يوجد تاريخ داخلي — الرجوع للصفحة الرئيسية
-    window.location.href = 'index.html';
+    // نحن في الحالة الجذرية. لا نغيّر location هنا؛ Android/WebView يمكنه
+    // التعامل مع زر الرجوع الطبيعي بدل إعادة تحميل index بشكل غير متوقع.
+    return;
   }
 });
 function enableTabs() {

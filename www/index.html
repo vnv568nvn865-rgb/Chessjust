@@ -206,7 +206,7 @@
   button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{
     outline:2px solid var(--gold); outline-offset:2px;
   }
-</style>
+.app-nav{max-width:1180px;margin:10px auto 0;padding:0 18px;display:flex;gap:8px;overflow:auto}.app-nav a{flex:0 0 auto;text-decoration:none;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:9px 14px;border-radius:10px;font-size:13px}.app-nav a.active,.app-nav a:hover{border-color:var(--gold);color:var(--gold)}</style>
 </head>
 <body data-theme="dark">
 
@@ -219,9 +219,11 @@
     </div>
   </div>
   <button class="theme-btn coach-btn" id="coachBtn">♟️ مدرب Chessjust</button>
+  <button class="theme-btn" id="playBtn" onclick="location.href='play.html'">🎮 العب ضد Stockfish</button>
   <button class="theme-btn" id="themeToggle">الوضع الليلي / النهاري</button>
 </div>
 
+<nav class="app-nav" aria-label="تنقل التطبيق"><a class="active" href="index.html">♟ التحليل</a><a href="coach.html">🎓 المدرب</a><a href="play.html">🎮 العب</a></nav>
 <div class="layout">
   <!-- LEFT: board + analysis -->
   <div>
@@ -271,32 +273,7 @@
   تحليل تقريبي يعتمد على محرك Stockfish يعمل داخل المتصفح (WASM). قد يختلف العمق حسب سرعة الجهاز.
 </div>
 
-<script>
-(function(){
-  function showDiag(title, detail){
-    try{
-      var box=document.getElementById('__cj_diag');
-      if(!box){
-        box=document.createElement('div'); box.id='__cj_diag';
-        box.style.cssText='position:fixed;z-index:2147483647;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;background:#240b0b;color:#fff;border:2px solid #ff5b5b;border-radius:10px;padding:12px;font:13px/1.5 monospace;direction:ltr;text-align:left;box-shadow:0 4px 20px rgba(0,0,0,.5)';
-        document.body.appendChild(box);
-      }
-      box.innerHTML='<b>Chessjust diagnostic: '+String(title).replace(/[<>]/g,'')+'</b><pre style="white-space:pre-wrap;margin:8px 0 0">'+String(detail||'').replace(/[<>]/g,'')+'</pre>';
-    }catch(e){}
-  }
-  window.CJDiag={show:showDiag};
-  window.addEventListener('error',function(e){
-    showDiag('JavaScript error', (e.message||'unknown')+'\nFile: '+(e.filename||'unknown')+'\nLine: '+(e.lineno||'?')+':'+(e.colno||'?'));
-  });
-  window.addEventListener('unhandledrejection',function(e){
-    var r=e.reason; showDiag('Unhandled promise rejection', r && (r.stack||r.message) || String(r));
-  });
-})();
-</script>
-<script src="./vendor/chess.min.js" onerror="window.CJDiag && window.CJDiag.show('chess.min.js failed to load','The local chess.js file could not be loaded. This stops the main application script from running.');"></script>
-<script>
-if(typeof Chess==='undefined'){ window.CJDiag && window.CJDiag.show('chess.js missing','Chess is undefined after loading ./vendor/chess.min.js'); }
-</script>
+<script src="./vendor/chess.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -818,30 +795,19 @@ if(typeof Chess==='undefined'){ window.CJDiag && window.CJDiag.show('chess.js mi
     if(sfLoading || enginePool.length > 0) return;
     sfLoading = true;
     setEvalReadout('جاري تشغيل محرك التحليل...', '—');
-    const errors = [];
     try{
       for(let i = 0; i < POOL_SIZE; i++){
-        try{
-          const w = await loadOneEngineWorker();
-          const slot = {worker: w, busy: false, pendingInfo: null, pendingResolve: null};
-          attachPoolSlotHandler(slot);
-          w.postMessage('uci');
-          w.postMessage('setoption name UCI_ShowWDL value true');
-          w.postMessage('isready');
-          enginePool.push(slot);
-        } catch(e){
-          errors.push(e);
-        }
+        const w = await loadOneEngineWorker();
+        const slot = {worker: w, busy: false, pendingInfo: null, pendingResolve: null};
+        attachPoolSlotHandler(slot);
+        w.postMessage('uci');
+        w.postMessage('setoption name UCI_ShowWDL value true');
+        w.postMessage('isready');
+        enginePool.push(slot);
       }
-      if(enginePool.length > 0){
-        sfReady = true;
-        sfFailed = false;
-        if(positions && positions.length){ requestAnalysis(true); }
-        // عامل واحد صالح يكفي؛ لا نعرض فشلًا كاذبًا عندما يتعذر إنشاء العامل الثاني.
-        if(enginePool.length < POOL_SIZE) console.warn('Stockfish partial pool', errors);
-      } else {
-        throw (errors[0] || new Error('all_engines_failed'));
-      }
+      sfReady = true;
+      sfFailed = false;
+      if(positions && positions.length){ requestAnalysis(true); }
     } catch(e){
       console.error('stockfish pool init failed', e);
       sfReady = false;
@@ -1189,12 +1155,8 @@ if(typeof Chess==='undefined'){ window.CJDiag && window.CJDiag.show('chess.js mi
       const mover = i % 2 === 0 ? 'w' : 'b';
       const playedUci = playedUciFor(verboseMoves[i]);
       const c = classifyOneMove(evals[i], evals[i+1], mover, playedUci, bestUcis[i], verboseMoves[i]);
-      c.moveAcc = moveAccuracyFromResults(engineResults[i], engineResults[i+1]);
       moveClass[i] = c;
-      const rawA = engineResults[i]?.cp;
-      const rawB = engineResults[i+1]?.cp;
-      const cpLoss = (typeof rawA === 'number' && typeof rawB === 'number') ? Math.max(0, rawA + rawB) : 0;
-      const w = 1 + Math.min(1.25, cpLoss / 200);
+      const w = localVolatility(evals, i, 2);
       if(mover === 'w'){ whiteTotal += c.moveAcc * w; whiteWeight += w; }
       else { blackTotal += c.moveAcc * w; blackWeight += w; }
     }

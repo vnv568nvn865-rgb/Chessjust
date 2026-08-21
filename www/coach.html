@@ -89,22 +89,6 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .btn-sm{padding:6px 10px;font-size:12px;}
 .btn-out{background:transparent;border:1px solid var(--gold);color:var(--gold);}
 
-/* Larger, easier-to-press move navigation controls */
-.board-nav-btn{
-  min-width:52px;
-  width:52px;
-  height:46px;
-  padding:0;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:21px;
-  line-height:1;
-  border-radius:8px;
-  touch-action:manipulation;
-}
-.board-nav-btn:active{transform:scale(.97);}
-
 /* ── GAMES ── */
 .game-row{display:flex;justify-content:space-between;align-items:center;gap:8px;
   padding:8px 10px;border-radius:6px;border:1px solid var(--line);
@@ -138,9 +122,7 @@ label{font-size:11px;color:var(--ink-dim);display:block;margin-bottom:4px;}
 .sc-l{font-size:10px;color:var(--ink-dim);margin-top:1px;}
 
 /* ── EVAL GRAPH ── */
-.eval-svg{width:100%;height:60px;display:block;margin:8px 0;cursor:pointer;}
-.eval-dot{cursor:pointer;}
-
+.eval-svg{width:100%;height:60px;display:block;margin:8px 0;}
 
 /* ── MOVES ── */
 .mv-wrap{max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
@@ -851,7 +833,7 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
     document.getElementById('sb-pos').textContent    = `${completed}/${S.fens.length}`;
     document.getElementById('sb-depth').textContent  = result?.depth || '—';
     document.getElementById('sb-nps').textContent    =
-      AnalysisEngine.formatNPS(result?.nodes, elapsed);
+      AnalysisEngine.formatNPS(result?.nodes, elapsed / completed);
     document.getElementById('sb-eta').textContent    =
       AnalysisEngine.formatETA(completed, S.fens.length, elapsed);
 
@@ -944,6 +926,35 @@ async function analyzeGame(parsedMoves, playerIsWhite, meta) {
       console.warn('ErrorTracker failed after analysis:', e);
     }
   }
+}
+
+/* ════════════════════════════════════════
+   LOCAL COACH EXPLANATIONS — no external API
+   Uses Stockfish result + move classification + chess.js facts.
+════════════════════════════════════════ */
+function localCoachExplain(c, idx) {
+  if (!c) return 'اختر نقلة من القائمة لرؤية شرحها.';
+  const best = c.bestmove && S.coach ? S.coach.formatMove(c.bestmove) : 'أفضل نقلة غير متاحة';
+  const move = c.san || 'هذه النقلة';
+  const loss = Number(c.loss || 0);
+  const type = c.type || 'good';
+  const parts = [];
+  if (type === 'blunder') parts.push(`هذه النقلة (${move}) خطأ فادح لأنها غيّرت تقييم الموقف بشكل كبير.`);
+  else if (type === 'mistake') parts.push(`هذه النقلة (${move}) خطأ واضح؛ كان بالإمكان الحفاظ على موقف أفضل.`);
+  else if (type === 'inaccuracy') parts.push(`هذه النقلة (${move}) غير دقيقة، لكنها ليست انهيارًا كاملًا للموقف.`);
+  else if (type === 'brilliant') parts.push(`هذه نقلة رائعة (${move}) وتحقق فكرة تكتيكية أو دفاعية قوية.`);
+  else if (type === 'best') parts.push(`هذه هي أفضل نقلة تقريبًا (${move}) وفق Stockfish.`);
+  else parts.push(`النقلة (${move}) تحافظ على جزء كبير من جودة الموقف.`);
+  if (loss > 12) parts.push(`خسارة التقييم التقديرية كبيرة نسبيًا (${loss.toFixed(1)} نقطة مئوية من فرصة الفوز).`);
+  if (c.missedOpportunity) parts.push('كانت هناك فرصة أقوى كان يمكن استغلالها في هذا الموقف.');
+  if (c.bestmove) parts.push(`البديل الأقوى كان ${best}.`);
+  if (c.verboseMv?.captured) parts.push(`تضمنت النقلة أخذ ${c.verboseMv.captured}، لذلك يجب فحص الرد التكتيكي مباشرة بعد التبادل.`);
+  if (c.verboseMv?.piece === 'k') parts.push('لأن الملك تحرك، يجب الانتباه إلى الكشوف والتهديدات المباشرة في المربع الجديد.');
+  return parts.join(' ');
+}
+function renderLocalCoachExplanation(c, idx) {
+  const el = document.getElementById('board-expl');
+  if (el) el.innerHTML = `<strong>🧠 شرح محلي</strong><br>${escapeHtml(localCoachExplain(c, idx))}`;
 }
 
 /* ════════════════════════════════════════
@@ -1099,30 +1110,19 @@ function drawEvalGraph() {
   const svg = document.getElementById('eval-svg');
   const W = 300, H = 60, mid = H / 2;
   const pcts = S.whitePcts;
-  if (!svg || !pcts.length) return;
+  if (!pcts.length) return;
   const pts = pcts.map((v, i) => {
     const x = (i / Math.max(pcts.length - 1, 1)) * W;
     const y = mid - ((v - 50) / 50) * mid;
-    return [x, Math.max(0, Math.min(H, y))];
+    return [x.toFixed(1), Math.max(0, Math.min(H, y)).toFixed(1)];
   });
-  const poly = pts.map(p => p.map(v=>v.toFixed(1)).join(',')).join(' ');
-  const area = `M0,${mid} ${pts.map(p=>'L'+p.map(v=>v.toFixed(1)).join(',')).join(' ')} L${W},${mid} Z`;
+  const poly = pts.map(p => p.join(',')).join(' ');
+  const area = `M0,${mid} ${pts.map(p=>'L'+p.join(',')).join(' ')} L${W},${mid} Z`;
   svg.innerHTML = `
-    <line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="var(--line)" stroke-width="1"/>
+    <line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="#4a3423" stroke-width="1"/>
     <path d="${area}" fill="rgba(95,158,110,.22)" stroke="none"/>
-    <polyline points="${poly}" fill="none" stroke="var(--best)" stroke-width="2"/>`;
-  // Make every point on the evaluation graph clickable: it opens that position.
-  pts.forEach((p, i) => {
-    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circle.setAttribute('cx', p[0]); circle.setAttribute('cy', p[1]);
-    circle.setAttribute('r', i === S.board.idx ? '3.5' : '2');
-    circle.setAttribute('fill', i === S.board.idx ? 'var(--gold)' : 'var(--ink)');
-    circle.setAttribute('class','eval-dot');
-    circle.addEventListener('click', () => openBoard(i));
-    svg.appendChild(circle);
-  });
+    <polyline points="${poly}" fill="none" stroke="#5f9e6e" stroke-width="2"/>`;
 }
-
 
 /* ════════════════════════════════════════
    BOARD
@@ -1174,11 +1174,6 @@ function drawBoard(fen) {
           const tc = vm.to.charCodeAt(0)-97,   tr = parseInt(vm.to[1])-1;
           if (sq === fc+fr*8) div.classList.add('from-hl');
           if (sq === tc+tr*8) div.classList.add('to-hl');
-          const moveCls = S.moveCls[S.board.idx - 1];
-          if (moveCls?.color) {
-            if (sq === fc+fr*8) { div.classList.add('last-from'); div.style.backgroundColor = moveCls.color + '66'; }
-            if (sq === tc+tr*8) { div.classList.add('last-to'); div.style.backgroundColor = moveCls.color + '99'; }
-          }
         }
       }
       div.onclick = () => handleSqClick(sq, fen);
@@ -1224,22 +1219,18 @@ function tryMove(from, to) {
   const ff=from%8, fr=Math.floor(from/8);
   const tf=to%8,   tr=Math.floor(to/8);
   const uci=`${String.fromCharCode(97+ff)}${fr+1}${String.fromCharCode(97+tf)}${tr+1}`;
-  const c = S.moveCls[S.board.idx - 1];
-  const best = c?.bestmove;
+  const best = S.moveCls[S.board.idx - 1]?.bestmove;
   const box = document.getElementById('compare-box'); box.style.display='block';
-  const same = !!best && uci === best;
-  const label = same ? 'أفضل نقلة' : (c?.labelAr || 'تمت المقارنة');
-  const color = same ? 'var(--best)' : (c?.color || 'var(--inaccuracy)');
-  document.getElementById('compare-cnt').innerHTML = `
-    <div style="margin-bottom:8px">
-      <div style="font-size:11px;color:var(--ink-dim)">نقلتك</div>
-      <div style="font-size:15px;font-family:var(--fm);color:${color}">${S.coach.formatMove(uci)} ${same?'✓':''}</div>
-      <div style="font-size:11px;color:${color};margin-top:3px">${label}${c ? ` · ${Math.round(c.moveAcc)}%` : ''}</div>
-    </div>
-    <div>
-      <div style="font-size:11px;color:var(--ink-dim)">أفضل نقلة (Stockfish)</div>
-      <div style="font-size:15px;font-family:var(--fm);color:var(--best)">${best?S.coach.formatMove(best):'—'}</div>
-    </div>`;
+  document.getElementById('compare-cnt').innerHTML = uci === best
+    ? `<div class="ok" style="font-size:14px">✅ نقلتك هي نفس أفضل نقلة للمحرك!</div>`
+    : `<div style="margin-bottom:8px">
+        <div style="font-size:11px;color:var(--ink-dim)">نقلتك</div>
+        <div style="font-size:15px;font-family:var(--fm);color:var(--inaccuracy)">${S.coach.formatMove(uci)}</div>
+       </div>
+       <div>
+        <div style="font-size:11px;color:var(--ink-dim)">أفضل نقلة (Stockfish)</div>
+        <div style="font-size:15px;font-family:var(--fm);color:var(--best)">${best?S.coach.formatMove(best):'—'}</div>
+       </div>`;
 }
 
 function bNav(delta) {
@@ -1249,6 +1240,7 @@ function bNav(delta) {
   S.board.idx = newIdx; S.board.bestSqs = null;
   document.getElementById('compare-box').style.display = 'none';
   drawBoard(S.fens[newIdx]);
+  renderLocalCoachExplanation(S.moveCls[newIdx-1], newIdx-1);
 }
 
 function bFlip()   { S.board.flipped = !S.board.flipped; drawBoard(S.fens[S.board.idx]); }
@@ -1267,7 +1259,7 @@ function bTry() {
   S.board.tryMode = !S.board.tryMode;
   const btn = document.getElementById('btn-try');
   btn.textContent = S.board.tryMode ? '🎮 إنهاء' : '🎮 جرّب';
-  if (S.board.tryMode) document.getElementById('board-expl').textContent = 'انقر قطعة ثم الوجهة';
+  if (S.board.tryMode) document.getElementById('board-expl').textContent = '🎮 اختر قطعتك ثم الوجهة. بعد النقل ستظهر مقارنة محلية مع أفضل نقلة للمحرك.';
 }
 
 /* ════════════════════════════════════════

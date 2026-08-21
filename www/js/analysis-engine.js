@@ -438,18 +438,7 @@ class AnalysisEngine {
       weight += weightForMove;
     }
     if (weight === 0) return 0;
-    const raw = total / weight;
-    // Small, bounded severity correction. CP-derived accuracy remains the
-    // primary signal; this only prevents several clearly bad classifications
-    // from averaging back into an implausibly high score.
-    const playerMoves = classifications.filter(c =>
-      (c.mover === mover) || (!c.mover && c.isPlayer)
-    );
-    const blunders = playerMoves.filter(c => c.type === 'blunder').length;
-    const mistakes = playerMoves.filter(c => c.type === 'mistake').length;
-    const inaccuracies = playerMoves.filter(c => c.type === 'inaccuracy').length;
-    const severityPenalty = Math.min(10, blunders * 2.5 + mistakes * 0.8 + inaccuracies * 0.2);
-    return Math.max(0, Math.min(100, raw - severityPenalty));
+    return Math.max(0, Math.min(100, total / weight));
   }
 
   /* ══════════════════════════════════════

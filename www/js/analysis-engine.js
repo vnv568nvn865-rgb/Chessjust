@@ -265,20 +265,31 @@ class AnalysisEngine {
   }
   static cpToWinPct(cp) { return AnalysisEngine.expectedScore(cp); }
 
-  static cpLossFromWhiteCp(beforeWhite, afterWhite, mover) {
-    if (typeof beforeWhite !== 'number' || typeof afterWhite !== 'number') return null;
-    return Math.max(0, mover === 'w' ? beforeWhite - afterWhite : afterWhite - beforeWhite);
+  // Quality is measured against the engine's best choice at the position.
+  // Stockfish's score on the pre-move position is the score of its best line,
+  // so we compare that score with the score after the played move.
+  static cpLossFromWhiteCp(bestWhite, afterWhite, mover) {
+    if (typeof bestWhite !== 'number' || typeof afterWhite !== 'number') return null;
+    const bestForMover = mover === 'w' ? bestWhite : -bestWhite;
+    const afterForMover = mover === 'w' ? afterWhite : -afterWhite;
+    return Math.max(0, bestForMover - afterForMover);
   }
 
-  static moveAccuracy(cpLoss, beforeWhiteCp, afterWhiteCp) {
-    if (typeof cpLoss !== 'number' || typeof beforeWhiteCp !== 'number' || typeof afterWhiteCp !== 'number') return null;
-    const before = AnalysisEngine.expectedScore(beforeWhiteCp);
-    const after = AnalysisEngine.expectedScore(afterWhiteCp);
-    if (before === null || after === null) return null;
-    const impactPct = Math.max(0, before - after);
-    // before/after are percentage points (0..100). Keep tiny evaluation
-    // changes near 100%, while meaningful losses fall quickly.
-    const accuracy = 100 * Math.exp(-0.035 * Math.pow(impactPct, 0.80));
+  static expectedLoss(bestWhiteCp, afterWhiteCp, mover) {
+    if (typeof bestWhiteCp !== 'number' || typeof afterWhiteCp !== 'number') return null;
+    const best = AnalysisEngine.expectedScore(mover === 'w' ? bestWhiteCp : -bestWhiteCp) / 100;
+    const after = AnalysisEngine.expectedScore(mover === 'w' ? afterWhiteCp : -afterWhiteCp) / 100;
+    if (!Number.isFinite(best) || !Number.isFinite(after)) return null;
+    return Math.max(0, Math.min(1, best - after));
+  }
+
+  // CAPS2-like grading: expected-points loss is the primary signal.
+  // This is intentionally our own transparent model, not a claim to reproduce
+  // Chess.com's private formula.
+  static moveAccuracy(cpLoss, beforeWhiteCp, afterWhiteCp, mover='w') {
+    const loss = AnalysisEngine.expectedLoss(beforeWhiteCp, afterWhiteCp, mover);
+    if (loss === null) return null;
+    const accuracy = 100 * Math.pow(Math.max(0, 1 - loss), 0.65);
     return Math.max(0, Math.min(100, accuracy));
   }
 
@@ -314,29 +325,43 @@ class AnalysisEngine {
     if (beforeWhiteCp === null || afterWhiteCp === null || !playedUci) {
       return {type:'unrated',labelAr:'غير متاحة',symbol:'—',cpLoss:null,moveAcc:null,missedOpportunity:false,color:AnalysisEngine.colors().unrated,bg:AnalysisEngine.colors().unrated+'22',mover,isBest:false};
     }
+
+    // Compare the played result with the engine's best result, not with the
+    // raw pre-move score. This removes search-noise from CP loss calculation.
     const cpLoss = AnalysisEngine.cpLossFromWhiteCp(beforeWhiteCp, afterWhiteCp, mover);
+    const expectedLoss = AnalysisEngine.expectedLoss(beforeWhiteCp, afterWhiteCp, mover);
     const isBest = !!(bestUci && bestUci !== '(none)' && playedUci === bestUci);
     const sacrifice = AnalysisEngine.isImmediateSacrifice(verboseMove, nextVerboseMove, fenAfter);
-    const brilliant = sacrifice && isBest && cpLoss <= 15;
-    const great = !isBest && !brilliant && cpLoss > 0 && cpLoss <= 12;
-    const missedOpportunity = beforeWhiteCp >= 150 && cpLoss >= 80 && !isBest;
+    const moverBefore = mover === 'w' ? beforeWhiteCp : -beforeWhiteCp;
+    const moverAfter = mover === 'w' ? afterWhiteCp : -afterWhiteCp;
+    const beforeEP = AnalysisEngine.expectedScore(moverBefore) / 100;
+    const afterEP = AnalysisEngine.expectedScore(moverAfter) / 100;
+
+    // Special moves: Brilliant = best + sound immediate piece sacrifice.
+    const brilliant = sacrifice && isBest && expectedLoss !== null && expectedLoss <= 0.02 && afterEP >= 0.50;
+    // Great = a critical turning-point move, even if it is not literally the
+    // engine's first PV move (e.g. losing/equal -> winning/equal).
+    const great = !isBest && !brilliant && expectedLoss !== null && expectedLoss <= 0.02 &&
+      ((beforeEP <= 0.45 && afterEP >= 0.55) || (beforeEP <= 0.35 && afterEP >= 0.50));
+    const missedOpportunity = beforeEP >= 0.75 && expectedLoss !== null && expectedLoss >= 0.10 && !isBest;
+
     let type='excellent', labelAr='ممتازة', symbol='';
     if (brilliant) { type='brilliant'; labelAr='رائعة'; symbol='‼'; }
     else if (isBest) { type='best'; labelAr='أفضل نقلة'; symbol='★'; }
     else if (great) { type='great'; labelAr='مدهشة'; symbol='!'; }
-    else if (cpLoss <= 30) { type='excellent'; labelAr='ممتازة'; }
-    else if (cpLoss <= 60) { type='good'; labelAr='جيدة'; }
-    else if (cpLoss <= 100) { type='inaccuracy'; labelAr='غير دقيقة'; symbol='?!'; }
-    else if (cpLoss <= 200) { type='mistake'; labelAr='خطأ'; symbol='?'; }
+    else if (expectedLoss !== null && expectedLoss < 0.02) { type='excellent'; labelAr='ممتازة'; }
+    else if (expectedLoss !== null && expectedLoss < 0.05) { type='good'; labelAr='جيدة'; }
+    else if (expectedLoss !== null && expectedLoss < 0.10) { type='inaccuracy'; labelAr='غير دقيقة'; symbol='?!'; }
+    else if (expectedLoss !== null && expectedLoss < 0.20) { type='mistake'; labelAr='خطأ'; symbol='?'; }
     else { type='blunder'; labelAr='خطأ فادح'; symbol='??'; }
-    if (missedOpportunity && (type === 'mistake' || type === 'inaccuracy')) { labelAr='تضييع فرصة'; symbol='⚡'; }
+
     const color = AnalysisEngine.colors()[type] || AnalysisEngine.colors().excellent;
     return {
-      type,labelAr,symbol,cpLoss,loss:cpLoss,
-      moveAcc:AnalysisEngine.moveAccuracy(cpLoss,beforeWhiteCp,afterWhiteCp),
+      type,labelAr,symbol,cpLoss,loss:cpLoss,expectedLoss,
+      moveAcc:AnalysisEngine.moveAccuracy(cpLoss,beforeWhiteCp,afterWhiteCp,mover),
       missedOpportunity,color,bg:color+'22',mover,
       beforeCp:beforeWhiteCp,afterCp:afterWhiteCp,isBest,bestmove:bestUci||null,
-      sacrifice
+      sacrifice,beforeEP,afterEP
     };
   }
 

@@ -273,7 +273,7 @@ class ChessCoach {
     const moveAccs = playerMoves
       .map(m => (typeof m.moveAcc === 'number') ? m.moveAcc :
         (typeof m.cpLoss === 'number' && typeof m.cpBefore === 'number' && typeof m.cpAfter === 'number'
-          ? AnalysisEngine.moveAccuracy(m.cpLoss, m.cpBefore, m.cpAfter) : null))
+          ? AnalysisEngine.moveAccuracy(m.cpLoss, m.cpBefore, m.cpAfter, m.mover || (playerColor || 'w')) : null))
       .filter(v => typeof v === 'number');
     const accuracy = moveAccs.length
       ? Math.round(moveAccs.reduce((a,b)=>a+b,0) / moveAccs.length)
@@ -288,7 +288,7 @@ class ChessCoach {
         moveNumber: m.moveNumber,
         move: m.move,
         cpLoss: m.cpLoss,
-        classification: AnalysisEngine.classifyMove(m.cpLoss),
+        classification: m.classification || {type: m.type || 'unrated', labelAr: m.labelAr || 'غير متاحة'},
         explanation: m.explanation
       }));
 
@@ -383,5 +383,4 @@ class ChessCoach {
 
 if (typeof window !== 'undefined') window.ChessCoach = ChessCoach;
 if (typeof module !== 'undefined') module.exports = ChessCoach;
-
-           
+             

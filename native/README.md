@@ -1,12 +1,20 @@
-# Chessjust Native Android foundation
+# Chessjust Native
 
-This is the first native UI foundation for the planned Kotlin + Jetpack Compose migration.
+هذا هو مسار إعادة بناء Chessjust كتطبيق Android Native حقيقي.
 
-Design goals:
-- No technical engine/WASM/WebView text in the user-facing UI.
-- No forced welcome sentence.
-- Dark charcoal/navy visual identity instead of the previous brown-heavy web palette.
-- Native bottom navigation and reusable cards.
-- Existing web training remains untouched while the native shell is developed in parallel.
+## المبدأ
+- Kotlin + Jetpack Compose هو الأساس الجديد.
+- لا يتم استخدام WebView كواجهة للتطبيق النهائي.
+- يتم نقل الوظائف من `www/` تدريجيًا إلى طبقات Kotlin أصلية.
+- Stockfish، PGN، Chess.com، التدريب، التكتيكات، الألغاز، الافتتاحيات والمدرب سيتم نقلها واختبارها مرحلةً بعد مرحلة.
 
-Next migration stages: native chessboard -> training screens -> Stockfish bridge -> persistence -> remove WebView dependency.
+## المرحلة الحالية
+- Native Android project فعال.
+- Compose Material 3.
+- Navigation سفلية أصلية.
+- Home / Analyze / Training / Profile.
+- لوحة شطرنج Native أولية قابلة للتفاعل.
+- تم تغيير GitHub Actions ليبني مجلد `native/` بدل Capacitor.
+
+## قاعدة الترحيل
+لا نعتبر المشروع مكتملًا طالما بقيت HTML/CSS/JavaScript هي الأساس التشغيلي لأي ميزة رئيسية. يتم حذف الأجزاء القديمة بعد نقل وظائفها والتحقق منها.

@@ -1,0 +1,11 @@
+/* Chessjust persistent local progress — no API/account required. */
+(function(){
+  const KEY='chessjust_progress_v1';
+  const defaults={version:1,tactics:{rating:800,solved:0,correct:0,streak:0,bestStreak:0,seen:[],mistakes:[],byMotif:{}},puzzles:{rating:2500,solved:0,correct:0,streak:0,bestStreak:0,seen:[]},openings:{mastered:[],attempts:0,correct:0},challenges:{completed:0},settings:{theme:'dark'}};
+  function clone(x){return JSON.parse(JSON.stringify(x));}
+  function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');return Object.assign(clone(defaults),x||{}, {tactics:Object.assign(clone(defaults.tactics),x?.tactics||{}),puzzles:Object.assign(clone(defaults.puzzles),x?.puzzles||{}),openings:Object.assign(clone(defaults.openings),x?.openings||{}),challenges:Object.assign(clone(defaults.challenges),x?.challenges||{}),settings:Object.assign(clone(defaults.settings),x?.settings||{})});}catch(e){return clone(defaults)}}
+  let data=load();
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}}
+  function update(path,fn){let obj=data;for(let i=0;i<path.length-1;i++)obj=obj[path[i]];fn(obj[path[path.length-1]]);save();return data;}
+  window.CJProgress={get:()=>clone(data),save,reset:()=>{data=clone(defaults);save();return data;},recordTactic:(ok,motif,id)=>{const t=data.tactics;t.solved++;ok?t.correct++:t.mistakes.push({id,motif,date:Date.now()});t.streak=ok?t.streak+1:0;t.bestStreak=Math.max(t.bestStreak,t.streak);t.rating=Math.max(400,Math.min(2800,t.rating+(ok?Math.max(4,Math.round((2200-t.rating)/80)): -Math.max(3,Math.round((t.rating-800)/140)))));if(id&&!t.seen.includes(id))t.seen.push(id);if(motif)t.byMotif[motif]=(t.byMotif[motif]||0)+(ok?1:0);save();return clone(t);},recordPuzzle:(ok,id)=>{const p=data.puzzles;p.solved++;ok?p.correct++:p.streak=0;if(ok)p.streak++;p.bestStreak=Math.max(p.bestStreak,p.streak);p.rating=Math.max(800,Math.min(3000,p.rating+(ok?12:-10)));if(id&&!p.seen.includes(id))p.seen.push(id);save();return clone(p);},opening:(id,ok)=>{data.openings.attempts++;if(ok&&id&&!data.openings.mastered.includes(id))data.openings.mastered.push(id);if(ok)data.openings.correct++;save();return clone(data.openings);},challenge:()=>{data.challenges.completed++;save();},snapshot:()=>clone(data)};
+})();
